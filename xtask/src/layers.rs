@@ -42,6 +42,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("derive", Class::Standalone),
     // the 3Dconnexion driver's client API on macOS (no workspace dependencies)
     ("3dx-client", Class::Standalone),
+    // the neutral CMM program and results for measuring-machine postprocessors (no workspace dependencies)
+    ("inspection", Class::Standalone),
     // the profiler: timed spans for every layer, the kernel's calls to commands (no workspace dependencies)
     ("profile", Class::Standalone),
     ("sketch", Class::Layer(1)),

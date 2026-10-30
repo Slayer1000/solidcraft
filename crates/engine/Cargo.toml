@@ -42,6 +42,8 @@ solidcraft-kernel = { workspace = true }
 solidcraft-doc = { workspace = true }
 solidcraft-io = { workspace = true }
 solidcraft-render = { workspace = true }
+# coordinate measuring: the neutral CMM program handed to a postprocessor
+solidcraft-inspection = { workspace = true }
 solidcraft-profile = { workspace = true }
 # reference pictures for inspect.compare_picture (PNG and JPEG decode, PNG encode)
 image = { workspace = true, features = ["jpeg"] }

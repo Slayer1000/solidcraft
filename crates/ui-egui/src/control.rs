@@ -780,14 +780,14 @@ fn dispatch(app: &mut SolveApp, ctx: &egui::Context, method: &str, p: &Value) ->
         "ui.status_fixture" => wrap(crate::viewport_status_fixture::control(app, p)),
         "ui.workspace" => {
             if let Some(workspace) = s("workspace") {
-                if !matches!(workspace, "design" | "render") {
-                    return err("workspace must be design or render");
+                if !matches!(workspace, "design" | "render" | "cmm") {
+                    return err("workspace must be design, render or cmm");
                 }
-                if let Err(e) = crate::render_workspace::enter(app, workspace == "render") {
+                if let Err(e) = crate::cmm_workspace::switch(app, workspace) {
                     return err(e);
                 }
             }
-            ok(json!({"workspace":if crate::render_workspace::active(app) {"render"} else {"design"}}))
+            ok(json!({"workspace": crate::cmm_workspace::current(app)}))
         }
         "engine.execute" | "command" => {
             let Some(id) = s("command").or(s("id")) else { return err("missing `command`") };

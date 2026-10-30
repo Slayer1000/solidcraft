@@ -17,6 +17,10 @@ pub fn tab_label(tab: &str) -> &str {
 pub fn word_cased(name: &str) -> String {
     name.split_whitespace()
         .map(|word| {
+            // acronyms stay as written (CMM)
+            if (2..=3).contains(&word.chars().count()) && word.chars().all(|c| c.is_ascii_uppercase()) {
+                return word.to_string();
+            }
             let lower = word.to_lowercase();
             let mut chars = lower.chars();
             chars.next().map(|c| c.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default()
@@ -325,6 +329,10 @@ pub const SECTIONS: &[Section] = &[
     Section { tab: "WELDMENTS", panel: "SKETCH", promoted: 1, ids: &["sketch.create"] },
     Section { tab: "WELDMENTS", panel: "CREATE", promoted: 1, ids: &["frame.member"] },
     Section { tab: "WELDMENTS", panel: "CONFIGURE", promoted: 2, ids: CONFIGURE },
+    Section { tab: "CMM", panel: "SETUP", promoted: 3, ids: &["cmm.setup", "cmm.alignment", "cmm.probe.table"] },
+    Section { tab: "CMM", panel: "CHARACTERISTICS", promoted: 4, ids: &["cmm.plane", "cmm.cylinder", "cmm.circle", "cmm.point"] },
+    Section { tab: "CMM", panel: "RELATIONS", promoted: 2, ids: &["cmm.distance", "cmm.angle"] },
+    Section { tab: "CMM", panel: "OUTPUT", promoted: 2, ids: &["cmm.export", "cmm.results"] },
 ];
 
 // Migration data only: Render commands remain registered, but have no live ribbon sections.
@@ -406,6 +414,11 @@ pub const RIBBON_LABELS: &[(&str, &str)] = &[
     ("render.settings.apply", "Saved Camera"),
     ("render.preflight", "Check"),
     ("appearance.assign", "Appearance"),
+    ("cmm.cylinder", "Cylinder"),
+    ("cmm.export", "Create Plan"),
+    ("cmm.plane", "Plane"),
+    ("cmm.probe.table", "Probes"),
+    ("cmm.results", "Results"),
     ("component.capture_position", "Capture Pos."),
     ("component.create", "New Comp."),
     ("component.from_bodies", "From Bodies"),
@@ -502,6 +515,10 @@ pub const PLACEMENTS: &[(&str, &str, &str, &str)] = &[
     ("MESH", "MODIFY", "INSERT", "FILES"),
     ("RENDER", "SCENE", "RENDER CAMERA", "SHOTS"),
     ("RENDER", "IMAGE", "RENDER", "RENDER"),
+    ("CMM", "SETUP", "CMM", "SETUP"),
+    ("CMM", "CHARACTERISTICS", "CMM", "CHARACTERISTICS"),
+    ("CMM", "RELATIONS", "CMM", "RELATIONS"),
+    ("CMM", "OUTPUT", "CMM", "OUTPUT"),
 ];
 
 pub fn panels(tab: &str) -> Vec<&'static str> {
@@ -670,6 +687,9 @@ pub fn visible_tabs(app: &crate::SolveApp) -> Vec<&'static str> {
     if crate::render_workspace::active(app) {
         return Vec::new();
     }
+    if crate::cmm_workspace::active(app) {
+        return vec![crate::cmm_workspace::TAB];
+    }
     let mut tabs: Vec<_> = TABS.iter().copied().filter(|tab| tab_turned_on(app, tab)).collect();
     if app.preferences.sketch_tab_always {
         // Right after MODEL, whether a sketch is open or not (#7904).
@@ -704,7 +724,7 @@ pub fn starts_a_sketch(app: &crate::SolveApp, id: &str) -> bool {
 /// other tabs to remain usable for the rest of that context. Sketch takes precedence over sheet
 /// metal, and sheet metal over weldments.
 pub fn sync_context(app: &mut crate::SolveApp) {
-    if crate::render_workspace::active(app) {
+    if crate::render_workspace::active(app) || crate::cmm_workspace::active(app) {
         return;
     }
     let context = app
@@ -762,6 +782,10 @@ pub fn command_tab(app: &crate::SolveApp, id: &str) -> Option<&'static str> {
         return None;
     }
     let (tab, _) = destination(c)?;
+    // The CMM workspace owns its entry and exit, like Render.
+    if tab == crate::cmm_workspace::TAB {
+        return None;
+    }
     // The Render workspace owns its entry/exit lifecycle.
     let render_closed = render_tab(tab) && !crate::render_workspace::active(app);
     (!render_closed && visible_tabs(app).contains(&tab)).then_some(tab)

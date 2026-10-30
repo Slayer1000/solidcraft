@@ -101,6 +101,13 @@ pub enum Target {
     NamedView {
         name: String,
     },
+    /// The CMM Plan folder (`what`: plan), a setup (setup, probe, alignment, characteristics) or
+    /// a characteristic.
+    Cmm {
+        what: String,
+        setup: Option<u64>,
+        characteristic: Option<u64>,
+    },
     /// A canvas (reference image).
     Canvas {
         id: u64,
@@ -437,13 +444,13 @@ pub fn items(app: &SolveApp, target: &Target) -> Vec<Item> {
         Target::HistoryControls => crate::timeline::transport_items(app),
         Target::Timeline { feature } => crate::timeline::feature_items(app, *feature),
         Target::Workspace => {
-            let rendering = crate::render_workspace::active(app);
+            let current = crate::cmm_workspace::current(app);
+            let free = app.session.active_sketch.is_none() && app.tool.is_none() && app.dialog.is_none() && !app.file_load.busy();
+            let mark = |w: &str| if current == w { "current" } else { "" };
             let mut v = vec![
-                act("ui.workspace.design", "Design", "ws_design").with(json!({"workspace":"design"})).key(if rendering { "" } else { "current" }),
-                act("ui.workspace.render", "Render", "ws_render")
-                    .with(json!({"workspace":"render"}))
-                    .key(if rendering { "current" } else { "" })
-                    .on(app.session.active_sketch.is_none() && app.tool.is_none() && app.dialog.is_none() && !app.file_load.busy()),
+                act("ui.workspace.design", "Design", "ws_design").with(json!({"workspace":"design"})).key(mark("design")),
+                act("ui.workspace.render", "Render", "ws_render").with(json!({"workspace":"render"})).key(mark("render")).on(free),
+                act("ui.workspace.cmm", "CMM", "measure").with(json!({"workspace":"cmm"})).key(mark("cmm")).on(free || current == "cmm"),
             ];
             for (w, icon) in [("Animation", "ws_animate"), ("Simulation", ""), ("Manufacture", ""), ("Drawing", "ws_drawing")] {
                 v.push(act("ui.workspace", w, icon).key("coming later").on(false));
@@ -518,6 +525,7 @@ pub fn items(app: &SolveApp, target: &Target) -> Vec<Item> {
                 })
                 .collect()
         }
+        Target::Cmm { what, setup, characteristic } => crate::browser::cmm_items(app, what, *setup, *characteristic),
     };
     if !crate::render_workspace::active(app) {
         v.extend(crate::browser::folded_folder_items(app, target));
@@ -1827,13 +1835,14 @@ pub fn run_item(app: &mut SolveApp, item: &Item, at: Pos2) {
             }
         }
         "ui.historyShowHidden" => app.tree.history_show_hidden = p["show"].as_bool().unwrap_or(false),
-        "ui.workspace" | "ui.workspace.design" | "ui.workspace.render" => {
+        "ui.workspace" | "ui.workspace.design" | "ui.workspace.render" | "ui.workspace.cmm" => {
             if let Some(workspace) = p.get("workspace").and_then(Value::as_str)
-                && let Err(e) = crate::render_workspace::enter(app, workspace == "render")
+                && let Err(e) = crate::cmm_workspace::switch(app, workspace)
             {
                 app.set_status(e, true);
             }
         }
+        id if id.starts_with("ui.cmm") => crate::browser::cmm_action(app, id, &p),
         "ui.findJoint" => {
             if let Some(id) = id_of(&p, "joint") {
                 crate::dialogs_assembly::find_joint(app, id);
@@ -2334,6 +2343,7 @@ pub fn check_target(app: &SolveApp, target: &Target) -> Result<(), String> {
         Target::OriginPlane { name } => crate::prefs::OriginPlaneNames::PLANES.contains(&name.as_str()),
         Target::OriginAxis { name } => ["X", "Y", "Z"].contains(&name.as_str()),
         Target::Component { id } => component(*id),
+        Target::Cmm { setup, .. } => setup.is_none_or(|id| doc.cmm.setups.iter().any(|s| s.id == id)),
         Target::Occurrence { path } => app.session.occurrence_placement(path).is_ok(),
         // The scope is the row it is under: the component's own, or one of its placements.
         Target::Group { id, scope } => doc.browser_groups.iter().any(|g| g.id == *id && crate::browser::scope_shows(app, scope, g.component)),
@@ -3490,14 +3500,14 @@ mod workspace_menu_tests {
         h.call("ui.resize", json!({"width":1200,"height":1000}));
         h.step(&json!({"click":{"handle":"ribbon:workspace"}})).unwrap();
         let opener = rect_of("ribbon:workspace").unwrap();
-        let rows: Vec<_> = ["design", "render", "animation", "simulation", "manufacture", "drawing"]
+        let rows: Vec<_> = ["design", "render", "cmm", "animation", "simulation", "manufacture", "drawing"]
             .iter()
             .map(|slug| rect_of(&format!("workspace:menu:{slug}")).unwrap())
             .collect();
         assert!(rows.windows(2).all(|pair| pair[0].bottom() <= pair[1].top()));
         assert!(rows[0].top() > opener.bottom());
         assert_eq!(rows[0].width(), 450.0);
-        assert!(items(&h.app, &Target::Workspace).iter().skip(2).all(|item| !item.enabled));
+        assert!(items(&h.app, &Target::Workspace).iter().skip(3).all(|item| !item.enabled));
         h.step(&json!({"click":{"handle":"workspace:menu:animation"}})).unwrap();
         assert!(!crate::render_workspace::active(&h.app));
         assert!(h.app.viewport.context_menu.is_some());

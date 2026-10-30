@@ -345,6 +345,7 @@ pub fn show(app: &mut SolveApp, ui: &mut egui::Ui, painter: &egui::Painter, proj
     if app.applying.is_some() {
         return;
     }
+    crate::cmm_workspace::overlay(app, painter, proj);
     if app.dialog.is_none() && app.tool.is_none() {
         crate::browser::occurrence_triad(app, ui, painter, proj);
     }

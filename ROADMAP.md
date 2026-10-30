@@ -469,6 +469,22 @@ completed drawings publish atomically. The browser still exports synchronously.
   damped spring, with a boundary margin to prevent flicker. Z-up/Y-up and the nearest square
   top/bottom heading are preserved. Diagonals include 45-degree edge and isometric corner views.
 
+## Coordinate measuring (CMM workspace)
+
+- Measuring plans on the model, saved with the design: setups with probe system and 3-2-1
+  alignment, circle, cylinder and plane measurements with their probing strategies, distances,
+  angles and point groups on any surface; probes drawn at the probing points from a local probe
+  table ([docs/cmm.md](docs/cmm.md)).
+- Output through postprocessors, as CAM does: each setup becomes a neutral CMM program
+  (`crates/inspection`) that a post outside this repository turns into one measuring software's
+  plan; NC programs per setup choose post, settings and characteristics, and write the CAD model
+  as STEP in the plan's base system and a setup sheet (PDF) for the operator.
+- Results read back through the same post: probed points coloured by deviation on the part,
+  characteristics in the browser. How to write a post, with an example:
+  [docs/cmm-postprocessors.md](docs/cmm-postprocessors.md).
+- Next: inclined bores and planes as measured elements, form and position tolerances, approach
+  paths checked against the probe's geometry.
+
 ## Known limitations
 
 - Scheduled and manual CI scan locked dependency advisories, bans and sources with

@@ -21,6 +21,7 @@ pub mod browser_canvas;
 pub mod browser_prompts;
 pub mod canvas;
 pub mod cli_link;
+pub mod cmm_workspace;
 #[cfg(test)]
 mod colour_tokens_tests;
 #[cfg(test)]
@@ -38,6 +39,7 @@ mod dialog_descriptor;
 pub mod dialogs;
 pub mod dialogs_appearance;
 pub mod dialogs_assembly;
+pub mod dialogs_cmm;
 pub mod dialogs_coupling;
 pub mod dialogs_frame;
 mod dialogs_hole;
@@ -460,6 +462,8 @@ pub struct Services {
     pub pick_file: Option<Box<dyn Fn(&str, &[&str]) -> FilePickerFuture>>,
     /// Open a dialog asking for a program (a slicer); `None` when the host has no such dialog.
     pub pick_program: Option<Box<dyn Fn() -> FilePickerFuture>>,
+    /// Open a dialog asking for a folder (`title`); `None` when the host has no such dialog.
+    pub pick_folder: Option<Box<dyn Fn(&str) -> FilePickerFuture>>,
     pub show_in_folder: Option<Box<dyn Fn(&str)>>,
     /// Where the host reads the anti-aliasing preference at start (a small JSON file).
     pub graphics_path: Option<String>,
@@ -584,6 +588,8 @@ pub struct SolveApp {
     pub sketch_report: Option<sketch_report::SketchReport>,
     /// The Bill of Materials window, when open.
     pub bom: Option<bom_panel::BomPanel>,
+    /// The CMM workspace (its plans as the tree shows them).
+    pub cmm: cmm_workspace::State,
     material_card_review: Option<material_card_review::ReviewWindow>,
     /// Context menus, rename box and Properties window.
     pub menu: context_menu::MenuState,
@@ -862,6 +868,7 @@ impl SolveApp {
             design_properties: None,
             sketch_report: None,
             bom: None,
+            cmm: Default::default(),
             material_card_review: None,
             menu: context_menu::MenuState::default(),
             gesture: mouse_gesture::State::default(),
@@ -2059,6 +2066,14 @@ impl SolveApp {
         }
         if id == "assembly.bom" {
             bom_panel::open(self);
+            return;
+        }
+        if id == "cmm.export" {
+            cmm_workspace::export(self, None);
+            return;
+        }
+        if id == "cmm.results" {
+            cmm_workspace::load_results(self, None, None);
             return;
         }
         // Inspect → Measure → Properties: the window, not a reply nobody sees (#8095).
@@ -3308,6 +3323,8 @@ impl SolveApp {
             );
         }
         let _language = crate::i18n::scope(&self.preferences.language);
+        // the CMM texts that leave the app (element names, setup sheet) follow the interface
+        solidcraft_engine::inspection_text::set_language(&self.preferences.language);
         let mut report_input = None;
         issue_report::CadInput::block(self, ui, &mut report_input);
         semantic_content::begin(self, ui.ctx());
@@ -3393,7 +3410,8 @@ impl SolveApp {
             let floating = render_workspace::active(self) || ui_kit::Container::new(ui.ctx(), ui_kit::Surface::Panel).floating();
             timeline::follow_view_pick(self);
             render_ui::focus_shortcut(self, ui);
-            let show_timeline = self.ui.show_timeline && !render_workspace::active(self) && !self.preferences.history_in_browser;
+            let show_timeline =
+                self.ui.show_timeline && !render_workspace::active(self) && !cmm_workspace::active(self) && !self.preferences.history_in_browser;
             let left_timeline = show_timeline && self.preferences.timeline_left;
             timeline_left::animate_folds(self, ui.ctx());
             if !floating && !self.embedded {

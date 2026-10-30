@@ -4174,6 +4174,7 @@ dependencies = [
  "solidcore-record",
  "solidcraft-doc",
  "solidcraft-geom",
+ "solidcraft-inspection",
  "solidcraft-io",
  "solidcraft-kernel",
  "solidcraft-profile",
@@ -4213,6 +4214,14 @@ dependencies = [
  "solidcraft-render",
  "thiserror 2.0.21",
  "wgpu",
+]
+
+[[package]]
+name = "solidcraft-inspection"
+version = "0.27.1"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
