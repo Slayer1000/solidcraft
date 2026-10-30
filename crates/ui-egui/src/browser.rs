@@ -22,8 +22,10 @@ mod occurrence_gizmo_tests;
 #[path = "browser_model.rs"]
 mod model;
 
+mod cmm;
 mod features;
 mod point_clouds;
+pub(crate) use cmm::{cmm_action, cmm_items};
 pub use point_clouds::CloudPanel;
 pub(crate) use point_clouds::point_cloud_tracks;
 
@@ -1663,6 +1665,7 @@ fn component_rows_inner(
         canvas_rows(app, ui, d, acts);
         point_clouds::rows(app, ui, d, acts);
         analysis_rows(app, ui, d, acts);
+        cmm::rows(app, ui, d, acts);
     }
     let render = crate::render_workspace::active(app);
     for (slot, folder) in root.folders.iter_mut().zip(["bodies", "sketches", "construction"]) {

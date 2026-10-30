@@ -302,12 +302,13 @@ pub(crate) struct Shortcut {
     pub replace: bool,
 }
 
-/// The two workspaces.
+/// The workspaces.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum Workspace {
     Design,
     Render,
+    Cmm,
 }
 
 /// `ui.workspace {workspace?}`: without one, the workspace shown.

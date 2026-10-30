@@ -19,12 +19,17 @@ pub mod crash;
 pub mod easyprint;
 pub mod frames;
 pub mod fuzz;
+pub mod inspection;
+pub mod inspection_results;
+pub mod inspection_sheet;
+pub mod inspection_text;
 pub mod licences;
 mod mesh_lines;
 pub mod occurrences;
 pub mod origins;
 pub mod panels;
 pub mod params;
+pub mod pdf;
 pub mod plugin;
 pub mod product_scene;
 pub mod recovery;
@@ -642,6 +647,9 @@ pub struct Session {
     status_activation: Vec<status_items::StatusId>,
     single_surface_analysis: bool,
     latest_analysis: Option<status_items::StatusId>,
+    /// The measurement results `cmm.results` loaded, shown at their probed points.
+    /// View state: not saved, not an undo step.
+    pub cmm_results: Option<inspection_results::LoadedResults>,
     /// What is hidden or shown in the view (`browser.visibility`): saved with the design and an
     /// undo step of its own ([`Snapshot::visibility`]). A design brings its saved visibility when
     /// it opens (`Session::new`).
@@ -909,6 +917,7 @@ impl Session {
             status_activation: Vec::new(),
             single_surface_analysis: true,
             latest_analysis: None,
+            cmm_results: None,
             checkpoints: Vec::new(),
             next_checkpoint: 1,
             replacements: 0,
@@ -1580,6 +1589,7 @@ impl Session {
             && (self.doc.differs_only_in_render(&before.doc)
                 || self.doc.differs_only_in_part_properties(&before.doc)
                 || self.doc.differs_only_in_appearance(&before.doc)
+                || self.doc.differs_only_in_cmm(&before.doc)
                 || self.doc.differs_only_in_browser(&before.doc))
     }
 
@@ -2077,6 +2087,7 @@ impl Session {
             status_activation: Vec::new(),
             single_surface_analysis: self.single_surface_analysis,
             latest_analysis: None,
+            cmm_results: None,
             checkpoints: Vec::new(),
             next_checkpoint: 1,
             replacements: 0,
@@ -2594,9 +2605,11 @@ fn same_but_features(a: &Document, b: &Document) -> bool {
         visibility,
         next_component_color_index,
         plugin_data,
+        cmm,
     } = a;
     *plugin_data == b.plugin_data
         && *render == b.render
+        && *cmm == b.cmm
         && *format == b.format
         && *format_pending == b.format_pending
         && *name == b.name

@@ -963,12 +963,17 @@ fn ui_browser(app: &SolveApp) -> Outcome {
 
 /// `ui.workspace {workspace?}`: enter the design or render workspace; returns the one shown.
 fn ui_workspace(app: &mut SolveApp, q: params::WorkspaceParams) -> Outcome {
-    if let Some(w) = q.workspace
-        && let Err(e) = crate::render_workspace::enter(app, w == params::Workspace::Render)
-    {
-        return err(e);
+    if let Some(w) = q.workspace {
+        let workspace = match w {
+            params::Workspace::Design => "design",
+            params::Workspace::Render => "render",
+            params::Workspace::Cmm => "cmm",
+        };
+        if let Err(e) = crate::cmm_workspace::switch(app, workspace) {
+            return err(e);
+        }
     }
-    ok(json!({"workspace":if crate::render_workspace::active(app) {"render"} else {"design"}}))
+    ok(json!({"workspace": crate::cmm_workspace::current(app)}))
 }
 
 /// `ui.agent_cursor {show?, speed?, follow_camera?}`: the agent cursor's settings.

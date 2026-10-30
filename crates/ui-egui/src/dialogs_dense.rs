@@ -84,6 +84,7 @@ pub(super) fn command(kind: &Kind) -> Option<&'static str> {
             _ => k.simple_metadata().map(|(command, _)| command),
         },
         Kind::Frame(_) => Some("frame.member"),
+        Kind::Cmm(k) => Some(k.command()),
         Kind::EndCap(_) => Some("frame.end_cap"),
         Kind::Plastic(k) => match k {
             crate::dialogs_plastic::Pl::SnapFit { .. } => Some("plastic.snap_fit"),
@@ -1152,6 +1153,7 @@ fn additional_rows(app: &mut SolveApp, d: &mut Dialog, ui: &mut egui::Ui) -> boo
         Kind::Sheet(k) => enter |= crate::dialogs_sheet::rows(app, ui, k, &mut d.inputs),
         Kind::Plastic(k) => enter |= crate::dialogs_plastic::rows(app, ui, k, &d.inputs),
         Kind::Frame(k) => enter |= crate::dialogs_frame::rows(app, ui, k, &d.inputs),
+        Kind::Cmm(k) => enter |= crate::dialogs_cmm::rows(app, ui, k, &mut d.inputs, &mut d.active, &mut d.extra),
         Kind::EndCap(k) => enter |= crate::dialogs_end_cap::rows(app, ui, k, &d.inputs),
         Kind::Assembly(k) => enter |= crate::dialogs_assembly::rows(app, ui, k, &mut d.inputs, &mut d.active),
         Kind::Measure { result, show, .. } => measure_rows(app, ui, result.as_ref(), show),

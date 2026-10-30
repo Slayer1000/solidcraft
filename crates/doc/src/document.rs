@@ -3375,6 +3375,9 @@ pub struct Document {
     /// Plastic rules.
     #[serde(default, skip_serializing_if = "crate::plastic::PlasticSettings::is_empty")]
     pub plastic: crate::plastic::PlasticSettings,
+    /// Coordinate measuring plans (setups with probe system, alignment and characteristics).
+    #[serde(default, skip_serializing_if = "crate::cmm::CmmPlans::is_empty")]
+    pub cmm: crate::cmm::CmmPlans,
     /// Components that are standard parts (by component id): what to rebuild them from.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub parts: std::collections::BTreeMap<u64, StandardPart>,
@@ -3719,6 +3722,7 @@ impl Document {
             assembly: Default::default(),
             sheet: Default::default(),
             plastic: Default::default(),
+            cmm: Default::default(),
             configs: Default::default(),
             parts: Default::default(),
             links: Default::default(),
@@ -3876,6 +3880,17 @@ impl Document {
         }
         let mut normalized = previous.clone();
         normalized.render = self.render.clone();
+        *self == normalized
+    }
+
+    /// Only the CMM plans changed: nothing to evaluate (the same whole-Document proof as
+    /// [`Document::differs_only_in_render`]).
+    pub fn differs_only_in_cmm(&self, previous: &Document) -> bool {
+        if self.cmm == previous.cmm {
+            return false;
+        }
+        let mut normalized = previous.clone();
+        normalized.cmm = self.cmm.clone();
         *self == normalized
     }
 

@@ -1,0 +1,16 @@
+[package]
+name = "solidcraft-inspection"
+description = "The neutral CMM program that SolidCraft hands to a measuring-machine postprocessor, and the results it reads back"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

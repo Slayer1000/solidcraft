@@ -17,3 +17,6 @@ mutants.out*/
 /corpus/
 
 # Separately compiled original plugin example.
+
+# CMM postprocessors are separate programs, built and kept outside this repository
+/post/
