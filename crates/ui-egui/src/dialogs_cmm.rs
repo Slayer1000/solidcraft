@@ -58,9 +58,14 @@ pub enum Km {
         /// Write the CAD model (STEP in the base system) beside the plan.
         step: bool,
     },
-    /// The alignment; `bores`: 0 cylinder, 1 circle.
+    /// The alignment; `bores`: 0 cylinder, 1 circle; `clamp`: the primary face is the clamping
+    /// face (the plate beside the part is probed), with the points' distance from the part and
+    /// the points themselves (`X Y; X Y; …`, empty: automatic).
     Alignment {
         bores: usize,
+        clamp: bool,
+        margin: String,
+        points: String,
     },
     /// A circle in a bore: points, its height below the opening plane, its position.
     Circle {
@@ -277,7 +282,9 @@ fn nc_kind(app: &SolveApp, setup: u64, nc: Option<u64>) -> Km {
     let chars = st
         .map(|s| {
             let model = app.session.world_state();
-            s.characteristics.iter().map(|c| (c.id, insp::characteristic_name(&model, c), prog.outputs(c.id))).collect()
+            insp::in_alignment(&model, &s.alignment, || {
+                s.characteristics.iter().map(|c| (c.id, insp::characteristic_name(&model, c), prog.outputs(c.id))).collect()
+            })
         })
         .unwrap_or_default();
     Km::Nc {
@@ -374,16 +381,52 @@ pub fn start(app: &SolveApp, id: &str) -> Option<(Kind, Vec<SelInput>)> {
         }
         "cmm.alignment" => {
             let mut inputs = alignment_inputs();
-            let mut bores = 0;
+            let mut km = alignment_kind(&Alignment::default());
             if let Some(st) = app.session.doc.cmm.active_setup() {
                 fill_alignment(app, &mut inputs, &st.alignment);
-                bores = usize::from(st.alignment.bores == AlignBores::Circle);
+                km = alignment_kind(&st.alignment);
             }
-            (Km::Alignment { bores }, inputs)
+            (km, inputs)
         }
         other => characteristic_kind(other)?,
     };
     Some((Kind::Cmm(km), inputs))
+}
+
+/// The alignment dialog's fields for alignment `a`.
+fn alignment_kind(a: &Alignment) -> Km {
+    let (clamp, margin, points) = match &a.clamp {
+        Some(c) => {
+            (true, insp::num(c.margin), c.points.iter().map(|q| format!("{} {}", insp::num(q[0]), insp::num(q[1]))).collect::<Vec<_>>().join("; "))
+        }
+        None => (false, String::new(), String::new()),
+    };
+    Km::Alignment { bores: usize::from(a.bores == AlignBores::Circle), clamp, margin, points }
+}
+
+/// The clamping plate the alignment dialog's fields give (`None`: not clamped); fields that
+/// do not read as numbers fall back to the automatic points.
+pub fn clamp_of(km: &Km) -> Option<insp::ClampPlane> {
+    let Km::Alignment { clamp: true, margin, points, .. } = km else { return None };
+    let mut c = insp::ClampPlane::default();
+    if let Some(m) = number(margin).filter(|m| *m > 0.0) {
+        c.margin = m;
+    }
+    c.points = parse_points(points).unwrap_or_default();
+    Some(c)
+}
+
+/// `X Y; X Y; …` (a decimal comma is fine) as points; `None` when a pair is not two numbers.
+fn parse_points(text: &str) -> Option<Vec<[f64; 2]>> {
+    let mut out = Vec::new();
+    for pair in text.split(';').map(str::trim).filter(|p| !p.is_empty()).take(insp::MAX_CLAMP_POINTS) {
+        let v: Vec<f64> = pair.split_whitespace().filter_map(number).collect();
+        match v.as_slice() {
+            [x, y] => out.push([*x, *y]),
+            _ => return None,
+        }
+    }
+    Some(out)
 }
 
 fn sel_of(app: &SolveApp, f: &FaceRef) -> Sel {
@@ -450,7 +493,7 @@ pub fn edit(app: &mut SolveApp, setup: u64, what: &str, characteristic: Option<u
         ("alignment", _) => {
             let mut inputs = alignment_inputs();
             fill_alignment(app, &mut inputs, &st.alignment);
-            ("cmm.alignment", Km::Alignment { bores: usize::from(st.alignment.bores == AlignBores::Circle) }, inputs)
+            ("cmm.alignment", alignment_kind(&st.alignment), inputs)
         }
         (_, Some(c)) => {
             extra.insert("characteristic".into(), json!(c.id));
@@ -548,18 +591,9 @@ fn face_ref(v: &Value) -> Option<FaceRef> {
 }
 
 /// The alignment the dialog's picks make (for the preview of its coordinate system).
-pub fn alignment_of(app: &SolveApp, inputs: &[SelInput]) -> Alignment {
+pub fn alignment_of(app: &SolveApp, inputs: &[SelInput], clamp: Option<insp::ClampPlane>) -> Alignment {
     let model = app.session.world_state();
     let refs = |i: usize| -> Vec<FaceRef> { faces_of(inputs, i).iter().filter_map(face_ref).collect() };
-    let origin = |faces: Vec<FaceRef>| match faces.as_slice() {
-        [f] => Some(match insp::analyze(&model, f).map(|x| x.kind) {
-            Ok(insp::FaceKind::Bore { .. }) => OriginRef::Bore { face: f.clone() },
-            _ => OriginRef::Side { face: f.clone() },
-        }),
-        [a, b] if insp::same_bore(&model, a, b) => Some(OriginRef::Bore { face: a.clone() }),
-        [a, b] => Some(OriginRef::Middle { first: a.clone(), second: b.clone() }),
-        _ => None,
-    };
     let mut a = Alignment {
         primary: refs(0).into_iter().next(),
         direction: match refs(1).as_slice() {
@@ -567,10 +601,26 @@ pub fn alignment_of(app: &SolveApp, inputs: &[SelInput]) -> Alignment {
             [x, y] => Some(DirectionRef::Bores { first: x.clone(), second: y.clone() }),
             _ => None,
         },
-        origin_x: origin(refs(2)),
-        origin_y: origin(refs(3)),
+        origin_x: None,
+        origin_y: None,
         bores: AlignBores::Cylinder,
+        clamp,
     };
+    // the origins' faces as the part lies (its axes come from the primary and direction faces)
+    let axes_of = a.clone();
+    let origin = |faces: Vec<FaceRef>| {
+        insp::in_alignment(&model, &axes_of, || match faces.as_slice() {
+            [f] => Some(match insp::analyze(&model, f).map(|x| x.kind) {
+                Ok(insp::FaceKind::Bore { .. }) => OriginRef::Bore { face: f.clone() },
+                _ => OriginRef::Side { face: f.clone() },
+            }),
+            [a, b] if insp::same_bore(&model, a, b) => Some(OriginRef::Bore { face: a.clone() }),
+            [a, b] => Some(OriginRef::Middle { first: a.clone(), second: b.clone() }),
+            _ => None,
+        })
+    };
+    a.origin_x = origin(refs(2));
+    a.origin_y = origin(refs(3));
     if a.origin_y.is_none()
         && let Some(OriginRef::Bore { face }) = &a.origin_x
     {
@@ -828,8 +878,19 @@ pub fn rows(
             }
         }
         Km::ProbeTable { rows, shown, new_name } => enter |= probe_rows(ui, rows, shown, new_name),
-        Km::Alignment { bores } => {
-            ui_kit::text(ui, crate::i18n::tr_label("Primary plane: the upward top face (spatial axis, origin Z)."), Text::Note("cmm_a1"));
+        Km::Alignment { bores, clamp, margin, points } => {
+            ui_kit::text(
+                ui,
+                crate::i18n::tr_label(
+                    "Primary plane: a plane of the part (spatial axis, origin Z); the measuring axes follow the part, however it lies.",
+                ),
+                Text::Note("cmm_a1"),
+            );
+            ui_kit::checkbox(ui, crate::i18n::tr_label("Clamped on this face: probe the clamping plate beside the part"), clamp);
+            if *clamp {
+                enter |= hint_row(ui, "Distance from the part", margin, "10 mm");
+                enter |= text_row(ui, "Points on the plate", points, crate::i18n::tr_label("X Y; X Y; … (empty: 4 points around the part)")).0;
+            }
             ui_kit::text(
                 ui,
                 crate::i18n::tr_label("Direction: one side face, or two bores (X runs from the first to the second)."),
@@ -852,7 +913,8 @@ pub fn rows(
                 "Cylinder: scanned over the depth; where its axis meets the primary plane is the origin."
             };
             ui_kit::text(ui, crate::i18n::tr_label(note), Text::Note("cmm_a5"));
-            let a = alignment_of(app, inputs);
+            let a =
+                alignment_of(app, inputs, clamp_of(&Km::Alignment { bores: *bores, clamp: *clamp, margin: margin.clone(), points: points.clone() }));
             if a.is_complete() {
                 match insp::frame(&app.session.world_state(), &a) {
                     Ok(f) => {
@@ -937,7 +999,8 @@ pub fn rows(
         let model = app.session.world_state();
         let setup = app.session.doc.cmm.active_setup();
         let frame = setup.and_then(|s| insp::frame(&model, &s.alignment).ok());
-        let info = insp::characteristic_info(&model, frame.as_ref(), &c);
+        let al = setup.map(|s| s.alignment.clone()).unwrap_or_default();
+        let info = insp::in_alignment(&model, &al, || insp::characteristic_info(&model, frame.as_ref(), &c));
         let problem = info["error"].as_str().map(str::to_string).or_else(|| setup.and_then(|s| insp::characteristic_elements(&model, s, &c).err()));
         match (info["nominal"].as_str(), problem) {
             (_, Some(e)) => {
@@ -1016,7 +1079,7 @@ pub fn commands(app: &SolveApp, k: &Km, inputs: &[SelInput], extra: &Map<String,
             }
             json!({ "rows": out })
         }
-        Km::Alignment { bores } => {
+        Km::Alignment { bores, clamp, margin, points } => {
             let need = |i: usize, what: &str| {
                 let f = faces_of(inputs, i);
                 if f.is_empty() || f.len() > 2 { Err(format!("{what}: select one or two faces")) } else { Ok(f) }
@@ -1029,6 +1092,14 @@ pub fn commands(app: &SolveApp, k: &Km, inputs: &[SelInput], extra: &Map<String,
             }
             p["origin_y"] = json!(y);
             p["bores"] = json!(if *bores == 1 { "circle" } else { "cylinder" });
+            p["clamp"] = json!(clamp);
+            if *clamp {
+                if !margin.trim().is_empty() {
+                    p["clamp_margin"] = json!(mm(margin, "Distance from the part")?);
+                }
+                let pts = parse_points(points).ok_or_else(|| "Points on the plate: X Y; X Y; … in mm".to_string())?;
+                p["clamp_points"] = json!(pts);
+            }
             if let Some(s) = app.session.doc.cmm.active_setup() {
                 p["setup"] = json!(s.id);
             }

@@ -276,7 +276,14 @@ fn shown_frame(app: &mut SolveApp) -> Option<(insp::Frame, String, bool)> {
     if let Some(d) = &app.dialog
         && matches!(d.kind, crate::dialogs::Kind::Cmm(crate::dialogs_cmm::Km::Alignment { .. }))
     {
-        let a = crate::dialogs_cmm::alignment_of(app, &d.inputs);
+        let a = crate::dialogs_cmm::alignment_of(
+            app,
+            &d.inputs,
+            crate::dialogs_cmm::clamp_of(match &d.kind {
+                crate::dialogs::Kind::Cmm(km) => km,
+                _ => return None,
+            }),
+        );
         if a.is_complete() {
             return insp::frame(&app.session.world_state(), &a).ok().map(|f| (f, String::new(), true));
         }

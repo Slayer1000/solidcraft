@@ -90,7 +90,6 @@
     "Postprocessor and plan output: in the setup's NC programs (Create Inspection Plan).": "Postprocessor and plan output: in the setup's NC programs (Create Inspection Plan).",
     "Postprocessor settings": "Postprocessor settings",
     "Primary Plane": "Primary Plane",
-    "Primary plane: the upward top face (spatial axis, origin Z).": "Primary plane: the upward top face (spatial axis, origin Z).",
     "Probe": "Probe",
     "Probe Length": "Probe Length",
     "Probe System": "Probe System",
@@ -161,7 +160,12 @@
     "help.cmm.probe.table": "Lists the probes with their dimensions, so the probe is drawn at the probing points. Fill it in once with the probes the machine has.",
     "help.cmm.export": "Writes the setup's inspection plan through its NC program's postprocessor, with the CAD model and a setup sheet. Use it when the plan is ready for the machine.",
     "help.cmm.nc": "Sets the postprocessor, plan name, output folder and characteristics of one output. Use it for a second machine or a plan with fewer characteristics.",
-    "help.cmm.results": "Reads the machine's results back and colors the probed points by their deviation. Use it after measuring to see where the part is out of tolerance."
+    "help.cmm.results": "Reads the machine's results back and colors the probed points by their deviation. Use it after measuring to see where the part is out of tolerance.",
+    "Primary plane: a plane of the part (spatial axis, origin Z); the measuring axes follow the part, however it lies.": "Primary plane: a plane of the part (spatial axis, origin Z); the measuring axes follow the part, however it lies.",
+    "Clamped on this face: probe the clamping plate beside the part": "Clamped on this face: probe the clamping plate beside the part",
+    "Distance from the part": "Distance from the part",
+    "Points on the plate": "Points on the plate",
+    "X Y; X Y; … (empty: 4 points around the part)": "X Y; X Y; … (empty: 4 points around the part)"
   },
   "en-GB": {
     "Circle: probed below the opening (a circle measurement of the bore gives points and height, else 4 points 2 mm below); its centre is the origin.": "Circle: probed below the opening (a circle measurement of the bore gives points and height, else 4 points 2 mm below); its centre is the origin.",
@@ -258,7 +262,6 @@
     "Postprocessor and plan output: in the setup's NC programs (Create Inspection Plan).": "المعالج اللاحق وإخراج الخطة: في برامج NC الخاصة بالإعداد (إنشاء خطة الفحص).",
     "Postprocessor settings": "إعدادات المعالج اللاحق",
     "Primary Plane": "المستوى الأساسي",
-    "Primary plane: the upward top face (spatial axis, origin Z).": "المستوى الأساسي: الوجه العلوي المتجه لأعلى (المحور المكاني، نقطة الأصل Z).",
     "Probe": "المجس",
     "Probe Length": "طول المجس",
     "Probe System": "نظام المجس",
@@ -329,7 +332,12 @@
     "help.cmm.probe.table": "يسرد المجسات بأبعادها لكي يُرسم المجس عند نقاط الجسّ. املأه مرة واحدة بالمجسات المتوفرة في الآلة.",
     "help.cmm.export": "يكتب خطة الفحص للإعداد عبر المعالج اللاحق لبرنامج NC الخاص به، مع نموذج CAD وورقة إعداد. استخدمه عندما تصبح الخطة جاهزة للآلة.",
     "help.cmm.nc": "يحدد المعالج اللاحق واسم الخطة ومجلد الإخراج والخصائص لإخراج واحد. استخدمه لآلة ثانية أو لخطة بخصائص أقل.",
-    "help.cmm.results": "يقرأ نتائج الآلة ويلوّن نقاط الجسّ حسب انحرافها. استخدمه بعد القياس لرؤية أين تخرج القطعة عن التفاوت."
+    "help.cmm.results": "يقرأ نتائج الآلة ويلوّن نقاط الجسّ حسب انحرافها. استخدمه بعد القياس لرؤية أين تخرج القطعة عن التفاوت.",
+    "Primary plane: a plane of the part (spatial axis, origin Z); the measuring axes follow the part, however it lies.": "المستوى الأساسي: مستوى من القطعة (المحور المكاني، نقطة الأصل Z)؛ تتبع محاور القياس القطعة أيًا كان وضعها.",
+    "Clamped on this face: probe the clamping plate beside the part": "مثبتة على هذا الوجه: جسّ لوح التثبيت بجانب القطعة",
+    "Distance from the part": "المسافة من القطعة",
+    "Points on the plate": "النقاط على اللوح",
+    "X Y; X Y; … (empty: 4 points around the part)": "X Y; X Y; … (فارغ: 4 نقاط حول القطعة)"
   },
   "de": {
     "2nd Measuring Length": "2. Messlänge",
@@ -422,7 +430,6 @@
     "Postprocessor and plan output: in the setup's NC programs (Create Inspection Plan).": "Postprozessor und Planausgabe: in den NC-Programmen des Setups (Plan erzeugen).",
     "Postprocessor settings": "Einstellungen des Postprozessors",
     "Primary Plane": "Primärebene",
-    "Primary plane: the upward top face (spatial axis, origin Z).": "Primärebene: die nach oben zeigende Oberseite (Raumachse, Nullpunkt Z).",
     "Probe": "Taster",
     "Probe Length": "Länge",
     "Probe System": "Tastersystem",
@@ -493,7 +500,12 @@
     "help.cmm.probe.table": "Listet die Taster mit ihren Maßen, damit der Taster an den Antastpunkten gezeigt wird. Einmal mit den Tastern der Maschine füllen.",
     "help.cmm.export": "Schreibt den Prüfplan des Setups über den Postprozessor seines NC-Programms, mit CAD-Modell und Einrichtblatt. Wenn der Plan an die Maschine soll.",
     "help.cmm.nc": "Legt Postprozessor, Planname, Ausgabeordner und Merkmale einer Ausgabe fest. Für eine zweite Maschine oder einen Plan mit weniger Merkmalen.",
-    "help.cmm.results": "Liest die Ergebnisse der Maschine zurück und färbt die Antastpunkte nach ihrer Abweichung. Nach dem Messen, um zu sehen, wo das Teil außer Toleranz ist."
+    "help.cmm.results": "Liest die Ergebnisse der Maschine zurück und färbt die Antastpunkte nach ihrer Abweichung. Nach dem Messen, um zu sehen, wo das Teil außer Toleranz ist.",
+    "Primary plane: a plane of the part (spatial axis, origin Z); the measuring axes follow the part, however it lies.": "Primärebene: eine Ebene des Teils (Raumachse, Nullpunkt Z); die Messachsen folgen dem Teil, wie immer es liegt.",
+    "Clamped on this face: probe the clamping plate beside the part": "Auf dieser Fläche aufgespannt: die Aufspannplatte neben dem Teil antasten",
+    "Distance from the part": "Abstand zum Teil",
+    "Points on the plate": "Punkte auf der Platte",
+    "X Y; X Y; … (empty: 4 points around the part)": "X Y; X Y; … (leer: 4 Punkte um das Teil)"
   },
   "he": {
     "2nd Measuring Length": "אורך מדידה שני",
@@ -586,7 +598,6 @@
     "Postprocessor and plan output: in the setup's NC programs (Create Inspection Plan).": "מעבד post ופלט התוכנית: בתוכניות ה-NC של ההצבה (יצירת תוכנית בדיקה).",
     "Postprocessor settings": "הגדרות מעבד post",
     "Primary Plane": "מישור ראשי",
-    "Primary plane: the upward top face (spatial axis, origin Z).": "מישור ראשי: הפאה העליונה הפונה למעלה (ציר מרחבי, ראשית Z).",
     "Probe": "גשש",
     "Probe Length": "אורך גשש",
     "Probe System": "מערכת גשש",
@@ -657,7 +668,12 @@
     "help.cmm.probe.table": "מציג את הגששים ומידותיהם, כדי לצייר את הגשש בנקודות המישוש. ממלאים פעם אחת בגששים שיש למכונה.",
     "help.cmm.export": "כותב את תוכנית הבדיקה של ההצבה דרך מעבד ה-post של תוכנית ה-NC שלה, עם מודל CAD ודף הצבה. כשהתוכנית מוכנה למכונה.",
     "help.cmm.nc": "קובע את מעבד ה-post, שם התוכנית, תיקיית הפלט והמאפיינים של פלט אחד. למכונה שנייה או לתוכנית עם פחות מאפיינים.",
-    "help.cmm.results": "קורא בחזרה את תוצאות המכונה וצובע את נקודות המישוש לפי הסטייה. אחרי המדידה, כדי לראות היכן החלק מחוץ לטולרנס."
+    "help.cmm.results": "קורא בחזרה את תוצאות המכונה וצובע את נקודות המישוש לפי הסטייה. אחרי המדידה, כדי לראות היכן החלק מחוץ לטולרנס.",
+    "Primary plane: a plane of the part (spatial axis, origin Z); the measuring axes follow the part, however it lies.": "מישור ראשי: מישור של החלק (ציר מרחבי, ראשית Z); צירי המדידה עוקבים אחרי החלק, איך שלא יונח.",
+    "Clamped on this face: probe the clamping plate beside the part": "מהודק על פאה זו: למשש את לוח ההידוק ליד החלק",
+    "Distance from the part": "מרחק מהחלק",
+    "Points on the plate": "נקודות על הלוח",
+    "X Y; X Y; … (empty: 4 points around the part)": "X Y; X Y; … (ריק: 4 נקודות סביב החלק)"
   },
   "ja": {
     "2nd Measuring Length": "第2測定長",
@@ -750,7 +766,6 @@
     "Postprocessor and plan output: in the setup's NC programs (Create Inspection Plan).": "ポストプロセッサーと計画の出力: セットアップのNCプログラムで（検査計画を作成）。",
     "Postprocessor settings": "ポストプロセッサー設定",
     "Primary Plane": "基準平面",
-    "Primary plane: the upward top face (spatial axis, origin Z).": "基準平面: 上向きの上面 (空間軸、原点 Z)。",
     "Probe": "プローブ",
     "Probe Length": "長さ",
     "Probe System": "プローブシステム",
@@ -821,7 +836,12 @@
     "help.cmm.probe.table": "プローブとその寸法の一覧で、測定点にプローブを表示するのに使います。機械にあるプローブを一度登録します。",
     "help.cmm.export": "セットアップの検査計画を NC プログラムのポストプロセッサで書き出し、CAD モデルと段取りシートも出力します。計画を機械に渡すときに使います。",
     "help.cmm.nc": "1つの出力のポストプロセッサ、計画名、出力フォルダ、特性を設定します。2台目の機械や特性を絞った計画に使います。",
-    "help.cmm.results": "機械の測定結果を読み込み、測定点を偏差で色分けします。測定後、部品のどこが公差外かを見るのに使います。"
+    "help.cmm.results": "機械の測定結果を読み込み、測定点を偏差で色分けします。測定後、部品のどこが公差外かを見るのに使います。",
+    "Primary plane: a plane of the part (spatial axis, origin Z); the measuring axes follow the part, however it lies.": "基準面: 部品の平面（空間軸、原点 Z）。測定軸は部品の向きに関係なく部品に従います。",
+    "Clamped on this face: probe the clamping plate beside the part": "この面で固定: 部品の横の定盤を測定する",
+    "Distance from the part": "部品からの距離",
+    "Points on the plate": "定盤上の点",
+    "X Y; X Y; … (empty: 4 points around the part)": "X Y; X Y; …（空欄: 部品の周りに4点）"
   },
   "ko": {
     "2nd Measuring Length": "제2 측정 길이",
@@ -914,7 +934,6 @@
     "Postprocessor and plan output: in the setup's NC programs (Create Inspection Plan).": "포스트프로세서와 계획 출력: 셋업의 NC 프로그램에서(검사 계획 생성).",
     "Postprocessor settings": "포스트프로세서 설정",
     "Primary Plane": "기본 평면",
-    "Primary plane: the upward top face (spatial axis, origin Z).": "기본 평면: 위를 향한 윗면(공간 축, 원점 Z).",
     "Probe": "프로브",
     "Probe Length": "프로브 길이",
     "Probe System": "프로브 시스템",
@@ -985,7 +1004,12 @@
     "help.cmm.probe.table": "프로브와 치수 목록으로, 측정점에 프로브를 표시하는 데 씁니다. 기계에 있는 프로브로 한 번 채웁니다.",
     "help.cmm.export": "셋업의 검사 계획을 NC 프로그램의 포스트프로세서로 작성하고 CAD 모델과 셋업 시트도 함께 출력합니다. 계획을 기계로 보낼 준비가 되면 사용합니다.",
     "help.cmm.nc": "한 출력의 포스트프로세서, 계획 이름, 출력 폴더, 측정 항목을 정합니다. 두 번째 기계나 측정 항목이 적은 계획에 사용합니다.",
-    "help.cmm.results": "기계의 측정 결과를 다시 읽어 측정점을 편차에 따라 색으로 표시합니다. 측정 후 부품의 어디가 공차를 벗어났는지 볼 때 사용합니다."
+    "help.cmm.results": "기계의 측정 결과를 다시 읽어 측정점을 편차에 따라 색으로 표시합니다. 측정 후 부품의 어디가 공차를 벗어났는지 볼 때 사용합니다.",
+    "Primary plane: a plane of the part (spatial axis, origin Z); the measuring axes follow the part, however it lies.": "기본 평면: 부품의 평면(공간 축, 원점 Z). 부품이 어떻게 놓여 있든 측정 축은 부품을 따릅니다.",
+    "Clamped on this face: probe the clamping plate beside the part": "이 면으로 고정: 부품 옆의 고정판을 측정",
+    "Distance from the part": "부품과의 거리",
+    "Points on the plate": "판 위의 점",
+    "X Y; X Y; … (empty: 4 points around the part)": "X Y; X Y; … (비우면: 부품 주위 4점)"
   },
   "vi": {
     "2nd Measuring Length": "Chiều dài đo thứ 2",
@@ -1078,7 +1102,6 @@
     "Postprocessor and plan output: in the setup's NC programs (Create Inspection Plan).": "Bộ hậu xử lý và xuất kế hoạch: trong các chương trình NC của thiết lập (Tạo kế hoạch kiểm tra).",
     "Postprocessor settings": "Cài đặt bộ hậu xử lý",
     "Primary Plane": "Mặt phẳng chuẩn",
-    "Primary plane: the upward top face (spatial axis, origin Z).": "Mặt phẳng chuẩn: mặt trên hướng lên (trục không gian, gốc Z).",
     "Probe": "Đầu dò",
     "Probe Length": "Chiều dài đầu dò",
     "Probe System": "Hệ đầu dò",
@@ -1149,7 +1172,12 @@
     "help.cmm.probe.table": "Liệt kê các đầu dò cùng kích thước để vẽ đầu dò tại các điểm dò. Điền một lần với các đầu dò mà máy có.",
     "help.cmm.export": "Xuất kế hoạch kiểm tra của thiết lập qua bộ hậu xử lý của chương trình NC, kèm mô hình CAD và phiếu gá. Dùng khi kế hoạch sẵn sàng cho máy.",
     "help.cmm.nc": "Đặt bộ hậu xử lý, tên kế hoạch, thư mục xuất và các đặc tính của một đầu ra. Dùng cho máy thứ hai hoặc kế hoạch ít đặc tính hơn.",
-    "help.cmm.results": "Đọc lại kết quả của máy và tô màu các điểm dò theo độ lệch. Dùng sau khi đo để thấy chỗ nào của chi tiết vượt dung sai."
+    "help.cmm.results": "Đọc lại kết quả của máy và tô màu các điểm dò theo độ lệch. Dùng sau khi đo để thấy chỗ nào của chi tiết vượt dung sai.",
+    "Primary plane: a plane of the part (spatial axis, origin Z); the measuring axes follow the part, however it lies.": "Mặt phẳng chuẩn: một mặt phẳng của chi tiết (trục không gian, gốc Z); các trục đo theo chi tiết, dù nó nằm thế nào.",
+    "Clamped on this face: probe the clamping plate beside the part": "Gá trên mặt này: dò bàn gá bên cạnh chi tiết",
+    "Distance from the part": "Khoảng cách từ chi tiết",
+    "Points on the plate": "Điểm trên bàn gá",
+    "X Y; X Y; … (empty: 4 points around the part)": "X Y; X Y; … (để trống: 4 điểm quanh chi tiết)"
   },
   "zh": {
     "2nd Measuring Length": "第二测量长度",
@@ -1242,7 +1270,6 @@
     "Postprocessor and plan output: in the setup's NC programs (Create Inspection Plan).": "后处理器与计划输出：在设置的NC程序中（创建检测计划）。",
     "Postprocessor settings": "后处理器设置",
     "Primary Plane": "主平面",
-    "Primary plane: the upward top face (spatial axis, origin Z).": "主平面：朝上的顶面 (空间轴，原点 Z)。",
     "Probe": "测针",
     "Probe Length": "长度",
     "Probe System": "测头系统",
@@ -1313,6 +1340,11 @@
     "help.cmm.probe.table": "列出测针及其尺寸，用于在测点处显示测针。按机器上的测针填写一次即可。",
     "help.cmm.export": "通过 NC 程序的后处理器写出设置的检测计划，并附带 CAD 模型和装夹单。计划准备好交给机器时使用。",
     "help.cmm.nc": "设定一个输出的后处理器、计划名称、输出文件夹和特征。用于第二台机器或特征较少的计划。",
-    "help.cmm.results": "读回机器的测量结果，并按偏差为测点着色。测量后用来查看零件哪里超差。"
+    "help.cmm.results": "读回机器的测量结果，并按偏差为测点着色。测量后用来查看零件哪里超差。",
+    "Primary plane: a plane of the part (spatial axis, origin Z); the measuring axes follow the part, however it lies.": "基准平面：零件上的一个平面（空间轴、Z 原点）；无论零件如何放置，测量坐标轴都跟随零件。",
+    "Clamped on this face: probe the clamping plate beside the part": "以此面装夹：测量零件旁边的装夹平台",
+    "Distance from the part": "与零件的距离",
+    "Points on the plate": "平台上的点",
+    "X Y; X Y; … (empty: 4 points around the part)": "X Y; X Y; …（留空：零件周围 4 点）"
   }
 }

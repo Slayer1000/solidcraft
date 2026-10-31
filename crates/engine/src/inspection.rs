@@ -21,9 +21,162 @@ use solidcraft_geom::Vec3;
 use solidcraft_inspection::program as pg;
 
 pub use solidcraft_doc::cmm::{
-    AlignBores, Alignment, Axis, Characteristic, CharacteristicKind, CmmPlans, CylinderProbing, DirectionRef, FaceRef, MAX_CHARACTERISTICS,
-    MAX_NC_PROGRAMS, MAX_PICKS, MAX_POINTS, MAX_SETUPS, NcProgram, OriginRef, PlaneProbing, PointCheck, ProbeSystem, SafetyPlane, Setup,
+    AlignBores, Alignment, Axis, Characteristic, CharacteristicKind, ClampPlane, CmmPlans, CylinderProbing, DirectionRef, FaceRef,
+    MAX_CHARACTERISTICS, MAX_CLAMP_POINTS, MAX_NC_PROGRAMS, MAX_PICKS, MAX_POINTS, MAX_SETUPS, NcProgram, OriginRef, PlaneProbing, PointCheck,
+    ProbeSystem, SafetyPlane, Setup,
 };
+
+// ------------------------------------------------------------------------------------------
+// The part's orientation
+// ------------------------------------------------------------------------------------------
+//
+// A part may lie turned in the model. The measuring coordinate system follows the part, not the
+// model: the primary face gives Z (out of the face, or into the part from the face it is clamped
+// on), the direction face turns X and Y. Inside [`in_alignment`] every face is analysed in these
+// part axes (so a turned part has axis-parallel planes and upright bores like any other) and
+// everything worked out there is in part axes; the public results ([`frame`], [`program`],
+// [`characteristic_elements`], the markers) are turned back into model coordinates.
+
+/// The part's axes in model coordinates (unit, right-handed). Part coordinates are the model's
+/// turned onto these axes (no shift).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PartAxes {
+    pub x: [f64; 3],
+    pub y: [f64; 3],
+    pub z: [f64; 3],
+}
+
+impl PartAxes {
+    fn to_part(self, v: [f64; 3]) -> [f64; 3] {
+        [dot3(v, self.x), dot3(v, self.y), dot3(v, self.z)]
+    }
+    fn to_model(self, v: [f64; 3]) -> [f64; 3] {
+        [0, 1, 2].map(|i| self.x[i] * v[0] + self.y[i] * v[1] + self.z[i] * v[2])
+    }
+}
+
+thread_local! {
+    /// Inside [`in_alignment`]: the part's axes (`Some(None)`: the model's own).
+    static PART: std::cell::Cell<Option<Option<PartAxes>>> = const { std::cell::Cell::new(None) };
+}
+
+fn part_axes_now() -> Option<PartAxes> {
+    PART.with(|p| p.get().flatten())
+}
+
+/// A model point or direction in part axes (unchanged outside [`in_alignment`]).
+pub fn to_part(v: [f64; 3]) -> [f64; 3] {
+    part_axes_now().map_or(v, |a| a.to_part(v))
+}
+
+/// A point or direction in part axes back in model coordinates.
+pub fn to_model(v: [f64; 3]) -> [f64; 3] {
+    part_axes_now().map_or(v, |a| a.to_model(v))
+}
+
+fn unit3(v: [f64; 3]) -> Option<[f64; 3]> {
+    let l = dot3(v, v).sqrt();
+    (l.is_finite() && l > 1e-9).then(|| v.map(|c| c / l))
+}
+
+fn cross3(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+}
+
+/// The part's axes an alignment gives, `None` when they are the model's: Z along the primary
+/// face's outward normal (against it for a clamping face), X and Y turned about Z so that the
+/// direction face stands across one of them, starting from the model's X.
+pub fn part_axes(model: &solidcraft_doc::ModelState, a: &Alignment) -> Option<PartAxes> {
+    let n = plane_normal(model, a.primary.as_ref()?).ok()?;
+    let z = unit3(if a.clamp.is_some() { n.map(|c| -c) } else { n })?;
+    let pick = if z[0].abs() < 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+    let d = dot3(pick, z);
+    let mut x = unit3([0, 1, 2].map(|i| pick[i] - z[i] * d))?;
+    if let Some(DirectionRef::Side { face }) = &a.direction
+        && let Ok(n) = plane_normal(model, face)
+    {
+        let y = cross3(z, x);
+        let (u, w) = (dot3(n, x), dot3(n, y));
+        if u.hypot(w) > 0.1 {
+            let quarter = std::f64::consts::FRAC_PI_2;
+            let angle = w.atan2(u);
+            let turn = angle - (angle / quarter).round() * quarter;
+            let (c, s) = (turn.cos(), turn.sin());
+            x = unit3([0, 1, 2].map(|i| x[i] * c + y[i] * s))?;
+        }
+    }
+    let y = cross3(z, x);
+    let same = |v: [f64; 3], e: [f64; 3]| (0..3).all(|i| (v[i] - e[i]).abs() < 1e-9);
+    if same(x, [1.0, 0.0, 0.0]) && same(y, [0.0, 1.0, 0.0]) && same(z, [0.0, 0.0, 1.0]) {
+        return None;
+    }
+    Some(PartAxes { x, y, z })
+}
+
+/// Resets the part axes when the scope ends (also when it unwinds).
+struct PartScope;
+
+impl Drop for PartScope {
+    fn drop(&mut self) {
+        PART.with(|p| p.set(None));
+    }
+}
+
+/// Runs `f` with faces analysed in the part axes of alignment `a` (see the section's note).
+/// Nested calls keep the outer scope.
+pub fn in_alignment<T>(model: &solidcraft_doc::ModelState, a: &Alignment, f: impl FnOnce() -> T) -> T {
+    if PART.with(|p| p.get().is_some()) {
+        return f();
+    }
+    let axes = part_axes(model, a);
+    PART.with(|p| p.set(Some(axes)));
+    let _scope = PartScope;
+    f()
+}
+
+/// An element worked out in part axes, in model coordinates.
+fn element_to_model(e: &mut pg::Element) {
+    let Some(ax) = part_axes_now() else { return };
+    let m = |v: &mut [f64; 3]| *v = ax.to_model(*v).map(round);
+    match &mut e.geometry {
+        pg::Geometry::Plane { normal, point, min, max } => {
+            m(normal);
+            m(point);
+            m(min);
+            m(max);
+        }
+        pg::Geometry::Cylinder { top, axis, .. } => {
+            m(top);
+            m(axis);
+        }
+        pg::Geometry::Circle { center, normal, .. } => {
+            m(center);
+            m(normal);
+        }
+        pg::Geometry::Point { point, normal } => {
+            m(point);
+            m(normal);
+        }
+    }
+    match &mut e.strategy {
+        pg::Strategy::CirclesOnPlane { circles } => circles.iter_mut().for_each(|c| m(&mut c.center)),
+        pg::Strategy::Points { at, .. } => at.iter_mut().for_each(m),
+        pg::Strategy::CylinderScan { .. } | pg::Strategy::CylinderPoints { .. } => {}
+    }
+}
+
+/// Markers worked out in part axes ([`element_markers`]), in model coordinates.
+fn markers_to_model(markers: &mut [Value]) {
+    let Some(ax) = part_axes_now() else { return };
+    for mk in markers.iter_mut() {
+        for key in ["at", "normal", "center", "start_normal"] {
+            let v = mk.get(key).and_then(|v| Some([v.get(0)?.as_f64()?, v.get(1)?.as_f64()?, v.get(2)?.as_f64()?]));
+            if let Some(v) = v {
+                mk[key] = json!(ax.to_model(v).map(round));
+            }
+        }
+    }
+}
 
 /// Outward normal of an axis-parallel plane face: the six axis directions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -404,14 +557,22 @@ pub fn analyze(state: &solidcraft_doc::ModelState, r: &FaceRef) -> Result<FaceIn
     }
     let patch = m.surface_patch(nearest.1);
     let index = patch.iter().copied().min().unwrap_or(nearest.1);
-    let tris: Vec<[Vec3; 3]> =
-        m.triangles.iter().zip(&m.tri_face).filter(|(_, f)| patch.contains(&(**f as usize))).filter_map(|(t, _)| m.tri(t)).collect();
+    // in part axes (see `in_alignment`)
+    let tp = |v: Vec3| v3(to_part(arr(v)));
+    let tris: Vec<[Vec3; 3]> = m
+        .triangles
+        .iter()
+        .zip(&m.tri_face)
+        .filter(|(_, f)| patch.contains(&(**f as usize)))
+        .filter_map(|(t, _)| m.tri(t))
+        .map(|t| t.map(tp))
+        .collect();
     if tris.is_empty() {
         return Err(tr!("the face has no triangles").into());
     }
     let kind = match solidcraft_kernel::face_surface(&b.body, nearest.1) {
-        Some(solidcraft_kernel::FaceSurface::Cylinder { origin, axis, radius }) => bore_kind(origin, axis.into(), radius, &tris)?,
-        Some(solidcraft_kernel::FaceSurface::Plane { normal, .. }) => plane_kind(normal.into(), &tris)?,
+        Some(solidcraft_kernel::FaceSurface::Cylinder { origin, axis, radius }) => bore_kind(tp(origin), tp(axis.into()), radius, &tris)?,
+        Some(solidcraft_kernel::FaceSurface::Plane { normal, .. }) => plane_kind(tp(normal.into()), &tris)?,
         _ => {
             // no exact surface: a planar mesh patch still counts as a plane
             let n = tri_normal(tris.first().copied().unwrap_or_default());
@@ -693,9 +854,9 @@ pub fn plane_normal(state: &solidcraft_doc::ModelState, r: &FaceRef) -> Result<[
         return Err(tr!("there is no face of {body} at {point}", body = format!("{:?}", r.body), point = format!("{:?}", r.point)));
     }
     match solidcraft_kernel::face_surface(&b.body, face) {
-        Some(solidcraft_kernel::FaceSurface::Plane { normal, .. }) => Ok(arr(normal.into())),
+        Some(solidcraft_kernel::FaceSurface::Plane { normal, .. }) => Ok(to_part(arr(normal.into()))),
         Some(_) => Err(tr!("choose a plane").into()),
-        None => Ok(arr(tri_normal(tri))),
+        None => Ok(to_part(arr(tri_normal(tri)))),
     }
 }
 
@@ -770,6 +931,14 @@ impl Frame {
     pub fn to_json(&self) -> Value {
         json!({"origin": self.origin.map(round), "x": self.x.map(round), "y": self.y.map(round), "z": self.z.map(round)})
     }
+    /// A frame in part axes, in model coordinates ([`to_model`]).
+    fn to_model(self) -> Frame {
+        Frame { origin: to_model(self.origin).map(round), x: to_model(self.x), y: to_model(self.y), z: to_model(self.z) }
+    }
+    /// A frame in model coordinates, in part axes ([`to_part`]).
+    fn to_part(self) -> Frame {
+        Frame { origin: to_part(self.origin), x: to_part(self.x), y: to_part(self.y), z: to_part(self.z) }
+    }
 }
 
 /// The coordinate system of a complete alignment.
@@ -785,9 +954,16 @@ pub fn same_bore(model: &solidcraft_doc::ModelState, a: &FaceRef, b: &FaceRef) -
 }
 
 pub fn frame(model: &solidcraft_doc::ModelState, a: &Alignment) -> Result<Frame, String> {
+    in_alignment(model, a, || frame_part(model, a).map(|f| f.to_model()))
+}
+
+/// The alignment's coordinate system in part axes (inside [`in_alignment`]).
+fn frame_part(model: &solidcraft_doc::ModelState, a: &Alignment) -> Result<Frame, String> {
     let primary = analyze(model, need(&a.primary, tr!("the primary plane"))?)?;
     let z0 = match primary.kind {
-        FaceKind::Plane { normal: Normal::PlusZ, min, .. } => min[2],
+        // a face the part stands on: Z points away from it, into the part
+        FaceKind::Plane { normal: Normal::MinusZ, min, .. } if a.clamp.is_some() => min[2],
+        FaceKind::Plane { normal: Normal::PlusZ, min, .. } if a.clamp.is_none() => min[2],
         FaceKind::Plane { .. } => return Err(tr!("Primary plane: the face must look up (+Z)").into()),
         FaceKind::Bore { .. } => return Err(tr!("Primary plane: choose a plane, not a bore").into()),
     };
@@ -882,6 +1058,10 @@ pub fn alignment_text(model: &solidcraft_doc::ModelState, a: &Alignment) -> Valu
 /// measurement, cylinder measurement or circle) whose strategy the alignment uses, else null:
 /// then the setup's default strategy applies.
 pub fn alignment_elements(model: &solidcraft_doc::ModelState, setup: &Setup) -> Value {
+    in_alignment(model, &setup.alignment, || alignment_elements_part(model, setup))
+}
+
+fn alignment_elements_part(model: &solidcraft_doc::ModelState, setup: &Setup) -> Value {
     let a = &setup.alignment;
     let mut refs: Vec<(&str, &FaceRef)> = Vec::new();
     if let Some(f) = &a.primary {
@@ -974,7 +1154,21 @@ pub fn alignment_elements(model: &solidcraft_doc::ModelState, setup: &Setup) -> 
             safety_plane: None,
             probe_file: None,
         });
-        let markers = characteristic_markers(model, setup, &shown);
+        let mut markers = characteristic_markers(model, setup, &shown);
+        let (mut name, mut strategy) = (name, strategy);
+        // the clamping plate: probed beside the part, not on the face
+        if role == "primary"
+            && let Some(clamp) = &a.clamp
+        {
+            let plate = frame_part(model, a).and_then(|fr| clamp_element(model, setup, clamp, &fr, String::new()));
+            if let Ok(el) = plate {
+                let mut m = element_markers(&el);
+                markers_to_model(&mut m);
+                strategy = tr!("{n} points on the clamping plate", n = m.len());
+                markers = json!(m);
+            }
+            name = tr!("Clamping plate ({face})", face = name);
+        }
         let v = json!({
             "role": role_label(role),
             "roles": [role],
@@ -1107,7 +1301,7 @@ pub fn check_picks(model: &solidcraft_doc::ModelState, face: &FaceInfo, picks: &
             return Err(tr!("point {i} is not on the chosen face", i = i + 1));
         }
     }
-    Ok(picks.iter().map(|p| p.map(round)).collect())
+    Ok(picks.iter().map(|p| to_part(*p).map(round)).collect())
 }
 
 /// Least number of points picked for a plane or cylinder measured with single points.
@@ -1224,13 +1418,14 @@ fn measure(model: &solidcraft_doc::ModelState, frame: Option<&Frame>, c: &Charac
             for (i, f) in points.iter().enumerate() {
                 surface_normal(model, f).map_err(|e| tr!("Point {i}: {e}", i = i + 1, e = e))?;
             }
-            let local: Vec<[f64; 3]> = points.iter().map(|f| frame.map_or(f.point, |fr| fr.local(f.point)).map(round)).collect();
+            let local: Vec<[f64; 3]> = points.iter().map(|f| to_part(f.point)).map(|q| frame.map_or(q, |fr| fr.local(q)).map(round)).collect();
             let how = match check {
                 PointCheck::Normal => "normal",
                 PointCheck::Coordinates => "X Y Z",
             };
             if let [p] = local.as_slice() {
-                let name = tr!("Point X{x} Y{y} Z{z}", x = num(first.point[0]), y = num(first.point[1]), z = num(first.point[2]));
+                let q = to_part(first.point);
+                let name = tr!("Point X{x} Y{y} Z{z}", x = num(q[0]), y = num(q[1]), z = num(q[2]));
                 let text = match check {
                     PointCheck::Coordinates => format!("X{} Y{} Z{} ±{tol}", num(p[0]), num(p[1]), num(p[2])),
                     PointCheck::Normal => tr!("Deviation 0 ±{tol} (normal) · X{x} Y{y} Z{z}", tol = tol, x = num(p[0]), y = num(p[1]), z = num(p[2])),
@@ -1256,6 +1451,9 @@ pub fn characteristic_name(model: &solidcraft_doc::ModelState, c: &Characteristi
 
 /// A characteristic for the tree and `cmm.state`.
 pub fn characteristic_info(model: &solidcraft_doc::ModelState, frame: Option<&Frame>, c: &Characteristic) -> Value {
+    // the frame comes in model coordinates; faces are analysed in part axes
+    let frame_part = frame.map(|f| f.to_part());
+    let frame = frame_part.as_ref();
     let faces: Vec<Value> = c.kind.faces().iter().map(|f| json!({"body": f.body, "point": f.point})).collect();
     let mut v = json!({
         "id": c.id,
@@ -1514,7 +1712,7 @@ fn inclined_element(model: &solidcraft_doc::ModelState, r: &FaceRef, name: Strin
     }
     Ok(pg::Element {
         name,
-        geometry: pg::Geometry::Plane { normal: normal.map(round), point: r.point.map(round), min: lo, max: hi },
+        geometry: pg::Geometry::Plane { normal: normal.map(round), point: to_part(r.point).map(round), min: lo, max: hi },
         strategy: pg::Strategy::Points { count: at.len() as u32, at },
         safety_plane: safety_label(how.safety),
         probe_file: how.probe.clone(),
@@ -1524,7 +1722,7 @@ fn inclined_element(model: &solidcraft_doc::ModelState, r: &FaceRef, name: Strin
 /// A point measurement as an element.
 fn point_element(model: &solidcraft_doc::ModelState, face: &FaceRef, name: String, how: &How) -> Result<pg::Element, String> {
     let normal = surface_normal(model, face)?;
-    let point = face.point.map(round);
+    let point = to_part(face.point).map(round);
     Ok(pg::Element {
         name,
         geometry: pg::Geometry::Point { point, normal },
@@ -1542,6 +1740,15 @@ fn how_of(setup: &Setup, c: &Characteristic) -> How {
 /// The elements a characteristic probes (for showing its points and paths on the model while
 /// its dialog is open or it is selected), probed as `setup` says.
 pub fn characteristic_elements(model: &solidcraft_doc::ModelState, setup: &Setup, c: &Characteristic) -> Result<Vec<pg::Element>, String> {
+    in_alignment(model, &setup.alignment, || {
+        let mut els = characteristic_elements_part(model, setup, c)?;
+        els.iter_mut().for_each(element_to_model);
+        Ok(els)
+    })
+}
+
+/// [`characteristic_elements`] in part axes.
+fn characteristic_elements_part(model: &solidcraft_doc::ModelState, setup: &Setup, c: &Characteristic) -> Result<Vec<pg::Element>, String> {
     let settings = Settings::of(model, setup, Some(c));
     let sp = how_of(setup, c);
     let entry = |r: &FaceRef| -> Result<pg::Element, String> {
@@ -1621,10 +1828,72 @@ pub fn element_markers(e: &pg::Element) -> Vec<Value> {
 
 /// The markers of a characteristic (see [`element_markers`]).
 pub fn characteristic_markers(model: &solidcraft_doc::ModelState, setup: &Setup, c: &Characteristic) -> Value {
-    match characteristic_elements(model, setup, c) {
-        Ok(els) => json!(els.iter().flat_map(element_markers).collect::<Vec<_>>()),
+    in_alignment(model, &setup.alignment, || match characteristic_elements_part(model, setup, c) {
+        Ok(els) => {
+            let mut markers: Vec<Value> = els.iter().flat_map(element_markers).collect();
+            markers_to_model(&mut markers);
+            json!(markers)
+        }
         Err(_) => json!([]),
+    })
+}
+
+/// The clamping plate as the primary plane (`Alignment::clamp`), in part axes: a plane through
+/// the primary face looking up (+Z), probed at the given points or `margin` outside the corners
+/// of the part's footprint. `frame`: the alignment's coordinate system in part axes.
+fn clamp_element(model: &solidcraft_doc::ModelState, setup: &Setup, clamp: &ClampPlane, frame: &Frame, name: String) -> Result<pg::Element, String> {
+    let z0 = frame.origin[2];
+    let (mut lo, mut hi) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
+    for name in setup_bodies(setup) {
+        let Some(b) = model.body(&name) else { continue };
+        let m = b.mesh();
+        for p in m.positions.iter().take(500_000) {
+            let q = to_part(arr(*p));
+            for i in 0..2 {
+                lo[i] = lo[i].min(q[i]);
+                hi[i] = hi[i].max(q[i]);
+            }
+        }
     }
+    if !(lo[0].is_finite() && hi[0].is_finite() && lo[1].is_finite() && hi[1].is_finite()) {
+        return Err(tr!("the setup measures no body yet").into());
+    }
+    let at: Vec<[f64; 3]> = if clamp.points.is_empty() {
+        let m = if clamp.margin.is_finite() && clamp.margin > 0.0 { clamp.margin.min(1000.0) } else { 10.0 };
+        vec![[lo[0] - m, lo[1] - m, z0], [hi[0] + m, lo[1] - m, z0], [hi[0] + m, hi[1] + m, z0], [lo[0] - m, hi[1] + m, z0]]
+    } else {
+        // X and Y in the alignment's coordinate system
+        let mut v = Vec::new();
+        for (i, q) in clamp.points.iter().take(MAX_CLAMP_POINTS).enumerate() {
+            if !(q[0].is_finite() && q[1].is_finite() && q[0].abs() < 1e5 && q[1].abs() < 1e5) {
+                return Err(tr!("clamping plate: point {i} is not valid", i = i + 1));
+            }
+            let p = [0, 1, 2].map(|k| frame.origin[k] + frame.x[k] * q[0] + frame.y[k] * q[1]);
+            if p[0] > lo[0] && p[0] < hi[0] && p[1] > lo[1] && p[1] < hi[1] {
+                return Err(tr!("clamping plate: point {i} lies under the part", i = i + 1));
+            }
+            v.push([p[0], p[1], z0]);
+        }
+        if v.len() < 3 {
+            return Err(tr!("clamping plate: give at least 3 points (or none for the automatic ones)").into());
+        }
+        v
+    };
+    let at: Vec<[f64; 3]> = at.into_iter().map(|p| p.map(round)).collect();
+    let (mut min, mut max) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+    for p in &at {
+        for k in 0..3 {
+            min[k] = min[k].min(p[k]);
+            max[k] = max[k].max(p[k]);
+        }
+    }
+    Ok(pg::Element {
+        name,
+        geometry: pg::Geometry::Plane { normal: [0.0, 0.0, 1.0], point: at.first().copied().unwrap_or([0.0, 0.0, z0]), min, max },
+        strategy: pg::Strategy::Points { count: at.len() as u32, at },
+        safety_plane: Some("+Z".into()),
+        probe_file: None,
+    })
 }
 
 fn expect_plane(info: &FaceInfo, role: &str) -> Result<(), String> {
@@ -1666,7 +1935,8 @@ fn surface_normal(model: &solidcraft_doc::ModelState, r: &FaceRef) -> Result<[f6
     }
     // a bore: exactly radial, out of the material (towards the axis)
     if let Ok(FaceInfo { kind: FaceKind::Bore { x, y, .. }, .. }) = analyze(model, r) {
-        let d = [x - r.point[0], y - r.point[1], 0.0];
+        let q = to_part(r.point);
+        let d = [x - q[0], y - q[1], 0.0];
         let l = (d[0] * d[0] + d[1] * d[1]).sqrt();
         if l > 1e-9 {
             return Ok([d[0] / l, d[1] / l, 0.0].map(round));
@@ -1684,7 +1954,7 @@ fn surface_normal(model: &solidcraft_doc::ModelState, r: &FaceRef) -> Result<[f6
     let flat = arr(tri_normal(tri));
     // any other curved face: the surface normals at the triangle's corners, interpolated at the
     // point (the facet's own normal is off by the facet angle), on the facet's side
-    Ok(smooth_normal(&m, t, &tri, r.point).filter(|n| dot3(*n, flat) > 0.5).unwrap_or(flat).map(round))
+    Ok(to_part(smooth_normal(&m, t, &tri, r.point).filter(|n| dot3(*n, flat) > 0.5).unwrap_or(flat)).map(round))
 }
 
 fn dot3(a: [f64; 3], b: [f64; 3]) -> f64 {
@@ -1754,14 +2024,19 @@ fn plane_points(model: &solidcraft_doc::ModelState, r: &FaceRef, count: usize) -
     if chosen.is_empty() {
         return Err(tr!("the face has no triangles").into());
     }
-    Ok(chosen.into_iter().map(|c| arr(c).map(round)).collect())
+    Ok(chosen.into_iter().map(|c| to_part(arr(c)).map(round)).collect())
 }
 
 /// A setup as the neutral CMM program its post translates.
 pub fn program(model: &solidcraft_doc::ModelState, setup: &Setup, nc: &NcProgram, plan: &str) -> Result<pg::Program, String> {
+    in_alignment(model, &setup.alignment, || program_part(model, setup, nc, plan))
+}
+
+/// [`program`], worked out in part axes and handed out in model coordinates.
+fn program_part(model: &solidcraft_doc::ModelState, setup: &Setup, nc: &NcProgram, plan: &str) -> Result<pg::Program, String> {
     let a = &setup.alignment;
     // the whole alignment must hold before anything is written
-    let fr = frame(model, a)?;
+    let fr = frame_part(model, a)?;
     let settings = Settings::of(model, setup, None);
     let sp = How { safety: setup.safety_plane, probe: None };
     let mut reg = Registry { faces: Vec::new() };
@@ -1769,7 +2044,15 @@ pub fn program(model: &solidcraft_doc::ModelState, setup: &Setup, nc: &NcProgram
     let an = |r: &FaceRef| analyze(model, r);
     let primary = an(need(&a.primary, tr!("the primary plane"))?)?;
     expect_plane(&primary, tr!("Primary plane"))?;
-    let primary_name = reg.add(primary, None, &sp);
+    let primary_name = match &a.clamp {
+        // the clamping plate beside the part, not the face itself
+        Some(clamp) => {
+            let name = reg.unique(tr!("Clamping plate"), &others);
+            others.push(clamp_element(model, setup, clamp, &fr, name.clone())?);
+            name
+        }
+        None => reg.add(primary, None, &sp),
+    };
     // the alignment's bores: cylinders in the registry, or circles of their own
     let mut circles: Vec<AlignCircle> = Vec::new();
     let mut bore_element = |f: FaceInfo, reg: &mut Registry, others: &mut Vec<pg::Element>| -> Result<String, String> {
@@ -1909,7 +2192,7 @@ pub fn program(model: &solidcraft_doc::ModelState, setup: &Setup, nc: &NcProgram
                             chars.push(pg::Characteristic { name: label, kind: pg::CharacteristicKind::Deviation { element }, tol })
                         }
                         PointCheck::Coordinates => {
-                            let l = fr.local(face.point.map(round));
+                            let l = fr.local(to_part(face.point).map(round));
                             for x in [Axis::X, Axis::Y, Axis::Z] {
                                 chars.push(pg::Characteristic {
                                     name: format!("{label} {}", x.letter()),
@@ -1934,11 +2217,13 @@ pub fn program(model: &solidcraft_doc::ModelState, setup: &Setup, nc: &NcProgram
     bodies.dedup();
     for name in bodies {
         if let Some(b) = model.body(name) {
-            let bb = b.mesh().bounds();
-            for (i, (lo, hi)) in [(bb.min.x, bb.max.x), (bb.min.y, bb.max.y), (bb.min.z, bb.max.z)].into_iter().enumerate() {
-                if let (Some(a), Some(z)) = (bbox.get(2 * i).copied(), bbox.get(2 * i + 1).copied()) {
-                    bbox[2 * i] = a.min(lo);
-                    bbox[2 * i + 1] = z.max(hi);
+            // the box in model coordinates around the part as it lies (turned or not)
+            for p in b.mesh().positions.iter().take(500_000) {
+                for (i, c) in arr(*p).into_iter().enumerate() {
+                    if let (Some(a), Some(z)) = (bbox.get(2 * i).copied(), bbox.get(2 * i + 1).copied()) {
+                        bbox[2 * i] = a.min(c);
+                        bbox[2 * i + 1] = z.max(c);
+                    }
                 }
             }
         }
@@ -1949,6 +2234,14 @@ pub fn program(model: &solidcraft_doc::ModelState, setup: &Setup, nc: &NcProgram
         elements.push(face_element(model, &settings, e).map_err(|x| format!("{}: {x}", e.name))?);
     }
     elements.extend(others);
+    // the clamping plate is measured first, as the primary plane
+    if let Some(i) = elements.iter().position(|e| e.name == primary_name) {
+        let first = elements.remove(i);
+        elements.insert(0, first);
+    }
+    // worked out in part axes, handed out in model coordinates
+    elements.iter_mut().for_each(element_to_model);
+    let fr = fr.to_model();
     let mut named: Vec<&str> = setup.probe.probe_file.as_deref().into_iter().collect();
     named.extend(elements.iter().filter_map(|e| e.probe_file.as_deref()));
     let probe_balls = probe_balls(&named);
@@ -1975,6 +2268,10 @@ pub fn program(model: &solidcraft_doc::ModelState, setup: &Setup, nc: &NcProgram
 
 /// One setup, described.
 pub fn setup_info(model: &solidcraft_doc::ModelState, plans: &CmmPlans, setup: &Setup, design_path: Option<&str>) -> Value {
+    in_alignment(model, &setup.alignment, || setup_info_part(model, plans, setup, design_path))
+}
+
+fn setup_info_part(model: &solidcraft_doc::ModelState, plans: &CmmPlans, setup: &Setup, design_path: Option<&str>) -> Value {
     let fr = frame(model, &setup.alignment);
     let frame_ok = fr.as_ref().ok();
     let characteristics: Vec<Value> = setup

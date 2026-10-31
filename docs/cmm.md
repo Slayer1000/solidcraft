@@ -17,7 +17,16 @@ characteristics), NC programs and, once loaded, measurement results.
    probed by default.
 2. **Alignment** (`cmm.alignment`): 3-2-1 from faces of the model. A primary plane (spatial axis
    and Z zero), a direction (a side plane, or the line through two bores) and the origin in X and
-   Y (a side plane, the middle of two opposite sides, or a bore's axis).
+   Y (a side plane, the middle of two opposite sides, or a bore's axis). The measuring axes follow
+   the part, not the model: a part lying turned in space is aligned on its own faces, and the
+   primary plane may face any way. Each characteristic is worked out in these axes, so a turned
+   part gets the same names and nominal values as an upright one.
+   - **Clamping plate:** when the primary face is the face the part is clamped on (`clamp: true`),
+     Z points into the part, and instead of that covered face a virtual plane through it, the
+     clamping plate, is probed beside the part. Its points are given in the alignment's X/Y
+     (`clamp_points`, at least 3, none under the part); without them four points are placed
+     `clamp_margin` mm (default 10) outside the part's corners. The setup sheet tells the
+     operator to probe the plate.
 3. **Characteristics:** Circle, Cylinder and Plane measurements with their probing strategy
    (circular paths, scans, single points, picked points), Distance, Angle and **Points** (one or
    many points on any surface, checked along the normal or as coordinates). Each can use its own
