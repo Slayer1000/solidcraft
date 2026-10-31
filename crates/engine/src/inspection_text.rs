@@ -144,6 +144,24 @@ macro_rules! tr {
 /// English → German. Every text of the CMM workspace that `tr!` takes has its line here (a test
 /// checks it); placeholders `{name}` stay as they are.
 static GERMAN: &[(&str, &str)] = &[
+    (
+        "Clamp the part as in the picture: it stands with the face of step 1 on the clamping plate; Z points up, into the part.",
+        "Teil aufspannen wie im Bild: Es steht mit der Fläche aus Schritt 1 auf der Aufspannplatte; Z zeigt nach oben, ins Teil.",
+    ),
+    ("at least 3 points on the plate, around the part", "mindestens 3 Punkte auf der Platte, um das Teil herum"),
+    (
+        "The part stands on the clamping plate with this face. Probe the plate beside the part from above: at least 3 points around it, as far apart as possible. The numbered points in the picture are the ones the CNC run takes later.",
+        "Das Teil steht mit dieser Fläche auf der Aufspannplatte. Die Platte neben dem Teil von oben antasten: mindestens 3 Punkte um das Teil herum, so weit wie möglich auseinander. Die nummerierten Punkte im Bild nimmt später der CNC-Lauf.",
+    ),
+    ("Clamping plate", "Aufspannplatte"),
+    ("{n} points on the clamping plate", "{n} Punkte auf der Aufspannplatte"),
+    ("Clamping plate ({face})", "Aufspannplatte ({face})"),
+    ("clamping plate: point {i} is not valid", "Aufspannplatte: Punkt {i} ist ungültig"),
+    ("clamping plate: point {i} lies under the part", "Aufspannplatte: Punkt {i} liegt unter dem Teil"),
+    (
+        "clamping plate: give at least 3 points (or none for the automatic ones)",
+        "Aufspannplatte: mindestens 3 Punkte angeben (oder keine für die automatischen)",
+    ),
     ("NC Program", "NC-Programm"),
     (" (for single steps also: {probes})", " (für einzelne Schritte außerdem: {probes})"),
     (" The same face also fixes the {origin}.", " Dieselbe Fläche legt auch den {origin} fest."),

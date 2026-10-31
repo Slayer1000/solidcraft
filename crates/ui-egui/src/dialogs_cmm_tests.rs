@@ -59,7 +59,7 @@ fn setup_alignment_and_characteristic_dialogs() {
     d.inputs[1].items = vec![pick(&app, BORE_B1), pick(&app, BORE_B2)];
     d.inputs[2].items = vec![pick(&app, BORE_M)];
     // the coordinate system the picks make, before OK
-    let a = alignment_of(&app, &d.inputs);
+    let a = alignment_of(&app, &d.inputs, None);
     assert!(a.is_complete(), "a bore for X alone is Y too");
     let f = insp::frame(&app.session.world_state(), &a).unwrap();
     assert_eq!(f.origin, [0.0, 0.0, 0.0]);

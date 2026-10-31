@@ -68,7 +68,34 @@ pub struct Alignment {
     /// How the alignment's bores (origin, direction) are measured.
     #[serde(skip_serializing_if = "AlignBores::is_cylinder")]
     pub bores: AlignBores,
+    /// The primary face is the face the part is clamped on: the machine's Z points away from it
+    /// into the part, and the primary plane is probed on the clamping plate beside the part (a
+    /// virtual plane through the face). `None`: the primary face is probed itself and Z points out
+    /// of it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clamp: Option<ClampPlane>,
 }
+
+/// The clamping plate as the primary plane: where it is probed, beside the part.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ClampPlane {
+    /// Points on the plate, X and Y in the alignment's coordinate system (mm). Empty: four
+    /// points `margin` outside the corners of the part's footprint.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub points: Vec<[f64; 2]>,
+    /// How far outside the part's footprint the automatic points lie (mm).
+    pub margin: f64,
+}
+
+impl Default for ClampPlane {
+    fn default() -> Self {
+        ClampPlane { points: Vec::new(), margin: 10.0 }
+    }
+}
+
+/// Most points on the clamping plate.
+pub const MAX_CLAMP_POINTS: usize = 50;
 
 /// How a bore of the alignment is measured.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

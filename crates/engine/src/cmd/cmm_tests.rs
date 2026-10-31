@@ -874,3 +874,82 @@ fn points_on_a_bore_wall_have_the_exact_normal() {
         assert!((0..3).all(|k| (normal[k] - want[k]).abs() < 1e-5), "P{}: {normal:?} != {want:?}", i + 1);
     }
 }
+
+/// Turns a point of the test block 30° about the model's X axis, as `solid.move` turns the block.
+fn turned(p: [f64; 3]) -> [f64; 3] {
+    let (s, c) = 30f64.to_radians().sin_cos();
+    [p[0], p[1] * c - p[2] * s, p[1] * s + p[2] * c]
+}
+
+/// A part lying turned in space: the alignment's primary plane may face any way, the measuring
+/// axes follow the part, not the model's axes.
+#[test]
+fn a_turned_part_is_aligned_on_its_own_faces() {
+    use solidcraft_inspection::program::{CharacteristicKind as K, Geometry};
+    let mut s = block();
+    run(&mut s, "solid.move", json!({"bodies": ["Klotz"], "axis": [1, 0, 0], "angle": "30 deg"}));
+    run(&mut s, "cmm.setup", json!({}));
+    let st = run(
+        &mut s,
+        "cmm.alignment",
+        json!({"primary": face(turned(TOP)), "direction": [face(turned(FRONT))], "origin_x": [face(turned(LEFT))], "origin_y": [face(turned(FRONT))]}),
+    );
+    assert_eq!(st["alignment"]["complete"], true, "{}", st["alignment"]["problem"]);
+    run(&mut s, "cmm.distance", json!({"from": face(turned(FRONT)), "to": face(turned(BACK))}));
+    run(&mut s, "cmm.cylinder", json!({"face": face(turned(BORE_M))}));
+    let v = run(&mut s, "cmm.program", json!({}));
+    let p: solidcraft_inspection::program::Program = serde_json::from_value(v).unwrap();
+    p.validate().unwrap();
+    let b = p.base_system.unwrap();
+    let near = |a: [f64; 3], e: [f64; 3]| a.iter().zip(e).all(|(a, e)| (a - e).abs() < 1e-6);
+    assert!(near(b.z, turned([0.0, 0.0, 1.0])), "{:?}", b.z);
+    assert!(near(b.x, [1.0, 0.0, 0.0]), "{:?}", b.x);
+    assert!(near(b.origin, turned([-50.0, -30.0, 0.0])), "{:?}", b.origin);
+    // in the base system the part is the untouched block: its far corner and the bore's axis
+    assert!(near(b.point(turned([50.0, 30.0, -30.0])), [100.0, 60.0, -30.0]));
+    let bore = p.elements.iter().find(|e| matches!(e.geometry, Geometry::Cylinder { .. })).unwrap();
+    assert!(matches!(bore.geometry, Geometry::Cylinder { diameter, .. } if (diameter - 20.0).abs() < 1e-6));
+    assert!(
+        p.characteristics
+            .iter()
+            .any(|c| matches!(&c.kind, K::Distance { nominal, axis: solidcraft_inspection::program::Axis::Y, .. } if (*nominal - 60.0).abs() < 1e-6)),
+        "{:?}",
+        p.characteristics
+    );
+}
+
+/// The face the part is clamped on: Z points into the part and a virtual plane on that face (the
+/// clamping plate) is probed beside the part.
+#[test]
+fn a_clamping_face_is_probed_on_the_plate() {
+    use solidcraft_inspection::program::{Geometry, Strategy};
+    const BOTTOM: [f64; 3] = [-45.0, -25.0, -30.0];
+    let mut s = block();
+    run(&mut s, "cmm.setup", json!({}));
+    let alignment = json!({"primary": face(BOTTOM), "clamp": true, "direction": [face(FRONT)], "origin_x": [face(LEFT)], "origin_y": [face(FRONT)]});
+    let st = run(&mut s, "cmm.alignment", alignment);
+    assert_eq!(st["alignment"]["complete"], true, "{}", st["alignment"]["problem"]);
+    let program = |s: &mut Session| -> solidcraft_inspection::program::Program { serde_json::from_value(run(s, "cmm.program", json!({}))).unwrap() };
+    let p = program(&mut s);
+    p.validate().unwrap();
+    let b = p.base_system.unwrap();
+    assert_eq!((b.origin, b.z), ([-50.0, -30.0, -30.0], [0.0, 0.0, 1.0]));
+    let plate = p.element(&p.alignment.primary).unwrap();
+    assert_eq!(p.elements.first().map(|e| e.name.as_str()), Some(p.alignment.primary.as_str()));
+    assert!(plate.name.starts_with("Clamping plate"), "{}", plate.name);
+    assert!(matches!(plate.geometry, Geometry::Plane { .. }), "{:?}", plate.geometry);
+    let Strategy::Points { at, .. } = &plate.strategy else { panic!("{:?}", plate.strategy) };
+    assert_eq!(at.len(), 4);
+    for q in at {
+        assert!((q[2] + 30.0).abs() < 1e-9, "{q:?}");
+        assert!(q[0].abs() >= 60.0 - 1e-9 && q[1].abs() >= 40.0 - 1e-9, "outside the part: {q:?}");
+    }
+    // given points: in the alignment's X/Y; one under the part is refused
+    run(&mut s, "cmm.alignment", json!({"clamp_points": [[-20, -20], [120, -20], [120, 80]]}));
+    let p = program(&mut s);
+    let Strategy::Points { at, .. } = &p.element(&p.alignment.primary).unwrap().strategy else { panic!() };
+    assert_eq!(at.first(), Some(&[-70.0, -50.0, -30.0]));
+    run(&mut s, "cmm.alignment", json!({"clamp_points": [[-20, -20], [120, -20], [50, 30]]}));
+    let e = s.execute("cmm.program", &json!({})).unwrap_err().to_string();
+    assert!(e.contains("under the part"), "{e}");
+}

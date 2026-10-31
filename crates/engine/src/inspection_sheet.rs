@@ -50,6 +50,13 @@ struct Step {
 /// The sheet of NC program `nc` of `setup` (whose neutral program is `program`).
 pub fn setup_sheet(s: &Session, setup: &Setup, nc: &NcProgram, program: &solidcraft_inspection::program::Program) -> Result<Vec<u8>, String> {
     let model = s.world_state();
+    // faces analysed as the part lies (see `inspection::in_alignment`)
+    insp::in_alignment(&model, &setup.alignment, || sheet_of(s, setup, nc, program))
+}
+
+fn sheet_of(s: &Session, setup: &Setup, nc: &NcProgram, program: &solidcraft_inspection::program::Program) -> Result<Vec<u8>, String> {
+    let model = s.world_state();
+    let clamp = setup.alignment.clamp.is_some();
     let frame = insp::frame(&model, &setup.alignment)?;
     let design = s
         .path
@@ -145,7 +152,12 @@ pub fn setup_sheet(s: &Session, setup: &Setup, nc: &NcProgram, program: &solidcr
         p.text(MARGIN, y, tr!("At the machine"), Font::Bold, 13.0, NAVY);
         y -= 18.0;
         let mut todo = vec![
-            tr!("Clamp the part as in the picture: the primary plane (step 1) faces up (+Z of the machine).").to_string(),
+            if clamp {
+                tr!("Clamp the part as in the picture: it stands with the face of step 1 on the clamping plate; Z points up, into the part.")
+                    .to_string()
+            } else {
+                tr!("Clamp the part as in the picture: the primary plane (step 1) faces up (+Z of the machine).").to_string()
+            },
             tr!("Load the probe: {probe}{others}.", probe = setup_probe, others = other_probes(&steps, &setup_probe)),
             tr!(
                 "Open the inspection plan “{plan}” in the measuring software (output: {folder}).",
@@ -226,7 +238,7 @@ pub fn setup_sheet(s: &Session, setup: &Setup, nc: &NcProgram, program: &solidcr
         let mut cy = top - 52.0;
         let facts: Vec<(&str, String)> = vec![
             (tr!("Element"), st.name.clone()),
-            (tr!("Probing by hand"), manual(&st.kind, &st.roles)),
+            (tr!("Probing by hand"), manual(&st.kind, &st.roles, clamp)),
             (tr!("CNC strategy"), st.strategy.clone()),
             (tr!("Points in the picture"), if count > 0 { count.to_string() } else { tr!("paths").into() }),
             (tr!("Probe"), st.probe.clone()),
@@ -242,7 +254,7 @@ pub fn setup_sheet(s: &Session, setup: &Setup, nc: &NcProgram, program: &solidcr
         cy -= 8.0;
         p.text(cx, cy, tr!("How to"), Font::Bold, 10.0, ORANGE);
         cy -= 13.0;
-        let _ = p.paragraph(cx, cy, cw, &instruction(&st.kind, &st.roles, &st.name), Font::Regular, 9.0, 11.5, INK);
+        let _ = p.paragraph(cx, cy, cw, &instruction(&st.kind, &st.roles, &st.name, clamp), Font::Regular, 9.0, 11.5, INK);
         if top_of_page && i + 1 == steps.len() {
             notes(p, top - block_h - 8.0, block_h - 20.0);
         }
@@ -636,9 +648,10 @@ fn origins(roles: &[String]) -> String {
 }
 
 /// How many points to probe by hand for the manual alignment.
-fn manual(kind: &str, roles: &[String]) -> String {
+fn manual(kind: &str, roles: &[String], clamp: bool) -> String {
     let has = |r: &str| roles.iter().any(|x| x == r);
     match kind {
+        "plane" if has("primary") && clamp => tr!("at least 3 points on the plate, around the part").into(),
         "plane" if has("primary") => tr!("at least 3 points, spread wide").into(),
         "plane" if has("direction") => tr!("at least 2 points, far apart").into(),
         "plane" => tr!("at least 1 point (better 2)").into(),
@@ -647,10 +660,14 @@ fn manual(kind: &str, roles: &[String]) -> String {
 }
 
 /// The instruction text of a step.
-fn instruction(kind: &str, roles: &[String], name: &str) -> String {
+fn instruction(kind: &str, roles: &[String], name: &str, clamp: bool) -> String {
     let has = |r: &str| roles.iter().any(|x| x == r);
     let origin = origins(roles);
     match kind {
+        "plane" if has("primary") && clamp => tr!(
+            "The part stands on the clamping plate with this face. Probe the plate beside the part from above: at least 3 points around it, as far apart as possible. The numbered points in the picture are the ones the CNC run takes later."
+        )
+        .to_string(),
         "plane" if has("primary") => tr!(
             "Probe the orange face ({name}) from above: at least 3 points, as far apart as possible and not on one line. The numbered points in the picture are the ones the CNC run takes later: probe close to them.",
             name = name

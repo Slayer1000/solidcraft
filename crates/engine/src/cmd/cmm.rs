@@ -26,7 +26,11 @@ pub static COMMANDS: &[CommandSpec] = &[
          unless a plane measurement says otherwise; default points) → {setup}. Postprocessor and plan output: cmm.nc",
     ),
     CommandSpec::new("cmm.alignment", "Alignment", alignment).at("CMM", "SETUP").icon("origin").enabled(has_setup).params(
-        "setup?: id (default: the active one); primary?: face (an upward plane: spatial axis and Z); direction?: [face] (a side plane) or \
+        "setup?: id (default: the active one); primary?: face (a plane: spatial axis and Z, out of the face; the part may lie turned \
+         in the model: the measuring axes follow the primary and direction faces); clamp?: bool (the primary face is the face the \
+         part is clamped on: Z points into the part and the clamping plate beside the part is probed instead of the face); \
+         clamp_points?: [[x, y], …] or null (points on the plate in the alignment's X/Y, at least 3, none under the part; null or \
+         empty: four points outside the part's corners); clamp_margin?: mm (how far outside, default 10); direction?: [face] (a side plane) or \
          [face, face] (two bores: X runs from the first to the second); origin_x?, origin_y?: [face] (a side plane or a bore) or [face, \
          face] (the middle of two opposite sides); a bore for X alone is also Y; bores?: cylinder|circle (how the alignment's \
          bores are measured: a cylinder whose axis meets the primary plane, or a circle below the opening whose centre is the \
@@ -354,20 +358,22 @@ fn delete_characteristic(s: &mut Session, p: &Value) -> Result<Value> {
 // Alignment
 // ------------------------------------------------------------------------------------------
 
-fn kind_of(s: &Session, f: &FaceRef, cmd: &str) -> Result<FaceKind> {
+/// A face's kind in the part axes of alignment `a` (a turned part has upright faces there).
+fn kind_of(s: &Session, a: &Alignment, f: &FaceRef, cmd: &str) -> Result<FaceKind> {
     let model = s.world_state();
-    insp::analyze(&model, f).map(|i| i.kind).map_err(|e| bad(cmd, e))
+    insp::in_alignment(&model, a, || insp::analyze(&model, f)).map(|i| i.kind).map_err(|e| bad(cmd, e))
 }
 
-fn origin_ref(s: &Session, faces: &[FaceRef], letter: &str, cmd: &str) -> Result<Option<OriginRef>> {
+fn origin_ref(s: &Session, al: &Alignment, faces: &[FaceRef], letter: &str, cmd: &str) -> Result<Option<OriginRef>> {
+    let model = s.world_state();
     Ok(match faces {
         [] => None,
-        [f] => Some(match kind_of(s, f, cmd)? {
+        [f] => Some(match kind_of(s, al, f, cmd)? {
             FaceKind::Bore { .. } => OriginRef::Bore { face: f.clone() },
             FaceKind::Plane { .. } => OriginRef::Side { face: f.clone() },
         }),
         // two picks in the same bore (both halves of its wall, or one twice) are that bore
-        [a, b] if insp::same_bore(&s.world_state(), a, b) => Some(OriginRef::Bore { face: a.clone() }),
+        [a, b] if insp::in_alignment(&model, al, || insp::same_bore(&model, a, b)) => Some(OriginRef::Bore { face: a.clone() }),
         [a, b] => Some(OriginRef::Middle { first: a.clone(), second: b.clone() }),
         _ => return Err(bad(cmd, format!("origin {letter}: one or two faces"))),
     })
@@ -393,6 +399,46 @@ fn alignment(s: &mut Session, p: &Value) -> Result<Value> {
             _ => None,
         };
     }
+    // the clamping plate as the primary plane
+    match p.get("clamp") {
+        None => {}
+        Some(Value::Null) | Some(Value::Bool(false)) => a.clamp = None,
+        Some(Value::Bool(true)) => {
+            a.clamp.get_or_insert_with(insp::ClampPlane::default);
+        }
+        Some(_) => return Err(bad(cmd, "`clamp` must be true or false")),
+    }
+    match p.get("clamp_margin") {
+        None | Some(Value::Null) => {}
+        Some(v) => {
+            let m = v
+                .as_f64()
+                .filter(|m| m.is_finite() && *m > 0.0 && *m <= 1000.0)
+                .ok_or_else(|| bad(cmd, "`clamp_margin` must be mm from 0 to 1000"))?;
+            a.clamp.get_or_insert_with(insp::ClampPlane::default).margin = m;
+        }
+    }
+    match p.get("clamp_points") {
+        None => {}
+        Some(Value::Null) => {
+            if let Some(c) = a.clamp.as_mut() {
+                c.points.clear();
+            }
+        }
+        Some(Value::Array(list)) if list.len() <= insp::MAX_CLAMP_POINTS => {
+            let mut pts = Vec::new();
+            for q in list {
+                let xy = q
+                    .as_array()
+                    .and_then(|q| Some([q.first()?.as_f64()?, q.get(1)?.as_f64()?]))
+                    .filter(|q| q.iter().all(|c| c.is_finite() && c.abs() < 1e5))
+                    .ok_or_else(|| bad(cmd, "`clamp_points` must be [[x, y], …] in mm"))?;
+                pts.push(xy);
+            }
+            a.clamp.get_or_insert_with(insp::ClampPlane::default).points = pts;
+        }
+        Some(_) => return Err(bad(cmd, format!("`clamp_points` must be at most {} points [x, y]", insp::MAX_CLAMP_POINTS))),
+    }
     match p.get("bores") {
         None | Some(Value::Null) => {}
         Some(v) => {
@@ -406,10 +452,10 @@ fn alignment(s: &mut Session, p: &Value) -> Result<Value> {
     let ox = face_list(p, "origin_x", cmd)?;
     let oy = face_list(p, "origin_y", cmd)?;
     if let Some(f) = &ox {
-        a.origin_x = origin_ref(s, f, "X", cmd)?;
+        a.origin_x = origin_ref(s, &a, f, "X", cmd)?;
     }
     if let Some(f) = &oy {
-        a.origin_y = origin_ref(s, f, "Y", cmd)?;
+        a.origin_y = origin_ref(s, &a, f, "Y", cmd)?;
     }
     // a bore for X alone is the origin in Y too
     if oy.as_ref().is_none_or(Vec::is_empty)
@@ -423,7 +469,7 @@ fn alignment(s: &mut Session, p: &Value) -> Result<Value> {
         insp::frame(&model, &a).map_err(|e| bad(cmd, e))?;
     } else {
         for f in a.primary.iter() {
-            insp::analyze(&model, f).map_err(|e| bad(cmd, e))?;
+            insp::in_alignment(&model, &a, || insp::analyze(&model, f)).map_err(|e| bad(cmd, e))?;
         }
     }
     if let Some(st) = s.doc_mut().cmm.setup_mut(id) {
@@ -465,7 +511,8 @@ fn put(s: &mut Session, p: &Value, cmd: &str, kind: CharacteristicKind, default_
     };
     let c = Characteristic { id, name: name.or(old_name).unwrap_or_default(), kind, tol, safety_plane, probe_file };
     let model = s.world_state();
-    let info = insp::characteristic_info(&model, None, &c);
+    let al = s.doc.cmm.setup(sid).map(|st| st.alignment.clone()).unwrap_or_default();
+    let info = insp::in_alignment(&model, &al, || insp::characteristic_info(&model, None, &c));
     if let Some(e) = info["error"].as_str() {
         return Err(bad(cmd, e));
     }
