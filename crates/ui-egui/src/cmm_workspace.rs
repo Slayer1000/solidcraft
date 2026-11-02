@@ -359,17 +359,28 @@ fn v3(a: [f64; 3]) -> solidcraft_engine::geom::Vec3 {
     solidcraft_engine::geom::Vec3::new(a[0], a[1], a[2])
 }
 
-/// Screen radius of a world radius `r` around `p` (seen across a vertical axis).
-fn screen_radius(proj: &crate::viewport::Proj, p: [f64; 3], r: f64) -> Option<f32> {
+/// Two unit directions at right angles to the unit vector `n`.
+fn across(n: [f64; 3]) -> ([f64; 3], [f64; 3]) {
+    let pick = if n[2].abs() > 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 0.0, 1.0] };
+    let d = pick[0] * n[0] + pick[1] * n[1] + pick[2] * n[2];
+    let u = [pick[0] - d * n[0], pick[1] - d * n[1], pick[2] - d * n[2]];
+    let l = (u[0] * u[0] + u[1] * u[1] + u[2] * u[2]).sqrt().max(1e-12);
+    let u = u.map(|x| x / l);
+    (u, [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]])
+}
+
+/// Screen radius of a world radius `r` around `p`, seen across the axis `axis` (unit).
+fn screen_radius(proj: &crate::viewport::Proj, p: [f64; 3], r: f64, axis: [f64; 3]) -> Option<f32> {
     let c = proj.to_screen(v3(p))?;
-    let a = proj.to_screen(v3([p[0] + r, p[1], p[2]])).map_or(0.0, |q| (q - c).length());
-    let b = proj.to_screen(v3([p[0], p[1] + r, p[2]])).map_or(0.0, |q| (q - c).length());
-    Some(a.max(b).max(1.0))
+    let (u, w) = across(axis);
+    let off = |d: [f64; 3]| proj.to_screen(v3([p[0] + r * d[0], p[1] + r * d[1], p[2] + r * d[2]])).map_or(0.0, |q| (q - c).length());
+    Some(off(u).max(off(w)).max(1.0))
 }
 
 /// Draws the probe standing on a probing point: the ball touching the surface, the shafts and
-/// the base body up along +Z (dimensions from the probe table, else typical ones).
-fn draw_probe(painter: &egui::Painter, proj: &crate::viewport::Proj, at: [f64; 3], normal: [f64; 3], g: &Value) {
+/// the base body up along `up`, the measuring system's +Z (dimensions from the probe table, else
+/// typical ones).
+fn draw_probe(painter: &egui::Painter, proj: &crate::viewport::Proj, at: [f64; 3], normal: [f64; 3], up: [f64; 3], g: &Value) {
     let t = crate::theme::Tokens::get();
     let num = |k: &str, d: f64| g[k].as_f64().filter(|x| x.is_finite() && *x > 0.0).unwrap_or(d);
     let ball = num("ball", 2.0);
@@ -379,7 +390,9 @@ fn draw_probe(painter: &egui::Painter, proj: &crate::viewport::Proj, at: [f64; 3
     let shaft = num("shaft", 1.5).min(ball);
     let body = num("body", 5.0);
     let c = [at[0] + normal[0] * r, at[1] + normal[1] * r, at[2] + normal[2] * r];
-    let up = |h: f64| [c[0], c[1], c[2] + h];
+    let l = (up[0] * up[0] + up[1] * up[1] + up[2] * up[2]).sqrt();
+    let z = if l.is_finite() && l > 1e-9 { up.map(|x| x / l) } else { [0.0, 0.0, 1.0] };
+    let up = |h: f64| [c[0] + z[0] * h, c[1] + z[1] * h, c[2] + z[2] * h];
     let mut parts: Vec<(f64, f64, f64)> = Vec::new();
     match (g["measuring_length2"].as_f64(), g["shaft2"].as_f64()) {
         (Some(m2), Some(d2)) if m2 > 0.0 && m2 < ml && d2 > 0.0 => {
@@ -393,13 +406,13 @@ fn draw_probe(painter: &egui::Painter, proj: &crate::viewport::Proj, at: [f64; 3
     let edge = egui::Stroke::new(1.0, t.text.gamma_multiply(0.8));
     for (h0, h1, d) in parts {
         let (Some(p0), Some(p1)) = (proj.to_screen(v3(up(h0))), proj.to_screen(v3(up(h1)))) else { continue };
-        let (Some(w0), Some(w1)) = (screen_radius(proj, up(h0), d / 2.0), screen_radius(proj, up(h1), d / 2.0)) else { continue };
+        let (Some(w0), Some(w1)) = (screen_radius(proj, up(h0), d / 2.0, z), screen_radius(proj, up(h1), d / 2.0, z)) else { continue };
         let dir = (p1 - p0).normalized();
         let side = if dir.is_finite() { egui::vec2(-dir.y, dir.x) } else { egui::vec2(1.0, 0.0) };
         let quad = vec![p0 + side * w0, p1 + side * w1, p1 - side * w1, p0 - side * w0];
         painter.add(egui::Shape::convex_polygon(quad, fill, edge));
     }
-    if let (Some(pc), Some(w)) = (proj.to_screen(v3(c)), screen_radius(proj, c, r)) {
+    if let (Some(pc), Some(w)) = (proj.to_screen(v3(c)), screen_radius(proj, c, r, z)) {
         painter.circle(pc, w, t.accent.gamma_multiply(0.85), egui::Stroke::new(1.0, t.text));
     }
 }
@@ -465,7 +478,9 @@ fn draw_markers(app: &mut SolveApp, painter: &egui::Painter, proj: &crate::viewp
         }
     }
     if let Some((at, normal)) = first {
-        draw_probe(painter, proj, at, normal, &probe);
+        // the probe stands along the measuring system's Z, not the model's
+        let up = shown_frame(app).map_or([0.0, 0.0, 1.0], |(f, _, _)| f.z);
+        draw_probe(painter, proj, at, normal, up, &probe);
     }
 }
 
