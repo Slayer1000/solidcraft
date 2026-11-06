@@ -1,7 +1,7 @@
 use crate::test_support::run_all;
 use serde_json::json;
+use solidcore_record::Vec3;
 use solidcraft_engine::Session;
-use solidcraft_engine::geom::Vec3;
 
 use super::*;
 use crate::Services;
@@ -61,7 +61,7 @@ fn setup_alignment_and_characteristic_dialogs() {
     // the coordinate system the picks make, before OK
     let a = alignment_of(&app, &d.inputs, None);
     assert!(a.is_complete(), "a bore for X alone is Y too");
-    let f = insp::frame(&app.session.world_state(), &a).unwrap();
+    let f = insp::frame(&app.session.world_state().unwrap(), &a).unwrap();
     assert_eq!(f.origin, [0.0, 0.0, 0.0]);
     let c = apply_commands(&app, &d).unwrap();
     assert_eq!(c[0].1["setup"], id);
@@ -124,7 +124,7 @@ fn characteristic_dialogs_check_their_picks() {
     assert!(apply_commands(&app, &d).is_err(), "the tolerance is a number");
     let Kind::Cmm(k) = &d.kind else { panic!("{:?}", d.kind) };
     let ch = characteristic_of(k, &d.inputs).unwrap();
-    let info = insp::characteristic_info(&app.session.world_state(), None, &ch);
+    let info = insp::characteristic_info(&app.session.world_state().unwrap(), None, &ch);
     assert_eq!(info["value"], 20.0);
 }
 
@@ -150,7 +150,7 @@ fn strategy_points_are_picked_on_the_face() {
     let Kind::Cmm(k) = &d.kind else { panic!() };
     let ch = characteristic_of(k, &d.inputs).unwrap();
     let st = app.session.doc.cmm.setups[0].clone();
-    assert_eq!(insp::characteristic_markers(&app.session.world_state(), &st, &ch).as_array().map(Vec::len), Some(4));
+    assert_eq!(insp::characteristic_markers(&app.session.world_state().unwrap(), &st, &ch).as_array().map(Vec::len), Some(4));
     run_all(&mut app, c);
     app.dialog = None;
     let cid = app.session.doc.cmm.setups[0].characteristics[0].id;

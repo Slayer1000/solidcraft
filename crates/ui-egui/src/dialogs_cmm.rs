@@ -281,7 +281,7 @@ fn nc_kind(app: &SolveApp, setup: u64, nc: Option<u64>) -> Km {
         .collect();
     let chars = st
         .map(|s| {
-            let model = app.session.world_state();
+            let model = app.session.world_state().unwrap_or_default();
             insp::in_alignment(&model, &s.alignment, || {
                 s.characteristics.iter().map(|c| (c.id, insp::characteristic_name(&model, c), prog.outputs(c.id))).collect()
             })
@@ -430,7 +430,7 @@ fn parse_points(text: &str) -> Option<Vec<[f64; 2]>> {
 }
 
 fn sel_of(app: &SolveApp, f: &FaceRef) -> Sel {
-    let p = solidcraft_engine::geom::Vec3::new(f.point[0], f.point[1], f.point[2]);
+    let p = solidcore_record::Vec3::new(f.point[0], f.point[1], f.point[2]);
     face_sel(&app.session, p).unwrap_or(Sel::Face { body: f.body.clone(), index: 0, point: p })
 }
 
@@ -556,7 +556,7 @@ pub fn edit(app: &mut SolveApp, setup: u64, what: &str, characteristic: Option<u
                 pin.items = picks
                     .iter()
                     .map(|p| {
-                        let at = solidcraft_engine::geom::Vec3::new(p[0], p[1], p[2]);
+                        let at = solidcore_record::Vec3::new(p[0], p[1], p[2]);
                         crate::dialogs::face_sel(&app.session, at).unwrap_or(Sel::Face { body: face.body.clone(), index: 0, point: at })
                     })
                     .collect();
@@ -592,7 +592,7 @@ fn face_ref(v: &Value) -> Option<FaceRef> {
 
 /// The alignment the dialog's picks make (for the preview of its coordinate system).
 pub fn alignment_of(app: &SolveApp, inputs: &[SelInput], clamp: Option<insp::ClampPlane>) -> Alignment {
-    let model = app.session.world_state();
+    let model = app.session.world_state().unwrap_or_default();
     let refs = |i: usize| -> Vec<FaceRef> { faces_of(inputs, i).iter().filter_map(face_ref).collect() };
     let mut a = Alignment {
         primary: refs(0).into_iter().next(),
@@ -916,7 +916,7 @@ pub fn rows(
             let a =
                 alignment_of(app, inputs, clamp_of(&Km::Alignment { bores: *bores, clamp: *clamp, margin: margin.clone(), points: points.clone() }));
             if a.is_complete() {
-                match insp::frame(&app.session.world_state(), &a) {
+                match insp::frame(&app.session.world_state().unwrap_or_default(), &a) {
                     Ok(f) => {
                         let o = f.origin.map(insp::num);
                         ui_kit::text(ui, &format!("Origin X{} Y{} Z{}", o[0], o[1], o[2]), Text::Value("cmm_origin", false));
@@ -996,7 +996,7 @@ pub fn rows(
     }
     sync_points(k, inputs, active);
     if let Some(c) = characteristic_of(k, inputs) {
-        let model = app.session.world_state();
+        let model = app.session.world_state().unwrap_or_default();
         let setup = app.session.doc.cmm.active_setup();
         let frame = setup.and_then(|s| insp::frame(&model, &s.alignment).ok());
         let al = setup.map(|s| s.alignment.clone()).unwrap_or_default();
