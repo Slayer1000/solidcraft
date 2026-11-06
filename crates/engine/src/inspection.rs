@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
-use solidcraft_geom::Vec3;
+use solidcore_record::Vec3;
 use solidcraft_inspection::program as pg;
 
 pub use solidcraft_doc::cmm::{

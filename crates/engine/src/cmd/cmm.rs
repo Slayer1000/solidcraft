@@ -134,7 +134,7 @@ fn has_setup(s: &Session) -> std::result::Result<(), String> {
 }
 
 fn state(s: &mut Session, _p: &Value) -> Result<Value> {
-    let model = s.world_state();
+    let model = s.world_state()?;
     Ok(insp::summary(&model, &s.doc.cmm, s.path.as_deref()))
 }
 
@@ -210,7 +210,7 @@ fn path_param(p: &Value, key: &str, cmd: &str) -> Result<Option<Option<String>>>
 }
 
 fn reply(s: &Session, setup: u64, extra: Value) -> Result<Value> {
-    let model = s.world_state();
+    let model = s.world_state()?;
     let mut v = match s.doc.cmm.setup(setup) {
         Some(st) => insp::setup_info(&model, &s.doc.cmm, st, s.path.as_deref()),
         None => json!({}),
@@ -360,12 +360,12 @@ fn delete_characteristic(s: &mut Session, p: &Value) -> Result<Value> {
 
 /// A face's kind in the part axes of alignment `a` (a turned part has upright faces there).
 fn kind_of(s: &Session, a: &Alignment, f: &FaceRef, cmd: &str) -> Result<FaceKind> {
-    let model = s.world_state();
+    let model = s.world_state()?;
     insp::in_alignment(&model, a, || insp::analyze(&model, f)).map(|i| i.kind).map_err(|e| bad(cmd, e))
 }
 
 fn origin_ref(s: &Session, al: &Alignment, faces: &[FaceRef], letter: &str, cmd: &str) -> Result<Option<OriginRef>> {
-    let model = s.world_state();
+    let model = s.world_state()?;
     Ok(match faces {
         [] => None,
         [f] => Some(match kind_of(s, al, f, cmd)? {
@@ -464,7 +464,7 @@ fn alignment(s: &mut Session, p: &Value) -> Result<Value> {
     {
         a.origin_y = Some(OriginRef::Bore { face: face.clone() });
     }
-    let model = s.world_state();
+    let model = s.world_state()?;
     if a.is_complete() {
         insp::frame(&model, &a).map_err(|e| bad(cmd, e))?;
     } else {
@@ -510,7 +510,7 @@ fn put(s: &mut Session, p: &Value, cmd: &str, kind: CharacteristicKind, default_
         None => None,
     };
     let c = Characteristic { id, name: name.or(old_name).unwrap_or_default(), kind, tol, safety_plane, probe_file };
-    let model = s.world_state();
+    let model = s.world_state()?;
     let al = s.doc.cmm.setup(sid).map(|st| st.alignment.clone()).unwrap_or_default();
     let info = insp::in_alignment(&model, &al, || insp::characteristic_info(&model, None, &c));
     if let Some(e) = info["error"].as_str() {
@@ -701,7 +701,7 @@ fn setup_program(s: &Session, p: &Value, cmd: &str) -> Result<(Setup, insp::NcPr
         _ => setup_id(s, p, cmd)?,
     };
     let setup = s.doc.cmm.setup(id).cloned().ok_or_else(|| bad(cmd, "the setup is gone"))?;
-    let model = s.world_state();
+    let model = s.world_state()?;
     let nc = match given_nc {
         Some(n) => setup.programs.iter().find(|x| x.id == n).cloned().ok_or_else(|| bad(cmd, format!("setup {id} has no NC program {n}")))?,
         None => insp::default_program(&setup),
@@ -777,7 +777,7 @@ fn export(s: &mut Session, p: &Value) -> Result<Value> {
     let step = if nc.no_step {
         None
     } else {
-        match insp::base_system_step(&s.world_state(), &setup, &program).and_then(|b| std::fs::write(&step_file, b).map_err(|e| e.to_string())) {
+        match insp::base_system_step(&*s.world_state()?, &setup, &program).and_then(|b| std::fs::write(&step_file, b).map_err(|e| e.to_string())) {
             Ok(()) => Some(step_file.display().to_string()),
             Err(e) => {
                 warnings.push(json!(tr!("CAD model {file}: {e}", file = step_file.display(), e = e)));

@@ -87,7 +87,7 @@ pub fn switch(app: &mut SolveApp, workspace: &str) -> Result<(), String> {
 pub fn summary(app: &mut SolveApp) -> Value {
     let key = (app.session.revision, Arc::as_ptr(&app.session.doc) as usize);
     if app.cmm.key != Some(key) {
-        let model = app.session.world_state();
+        let model = app.session.world_state().unwrap_or_default();
         app.cmm.summary = insp::summary(&model, &app.session.doc.cmm, app.session.path.as_deref());
         app.cmm.key = Some(key);
     }
@@ -285,7 +285,7 @@ fn shown_frame(app: &mut SolveApp) -> Option<(insp::Frame, String, bool)> {
             }),
         );
         if a.is_complete() {
-            return insp::frame(&app.session.world_state(), &a).ok().map(|f| (f, String::new(), true));
+            return insp::frame(&app.session.world_state().unwrap_or_default(), &a).ok().map(|f| (f, String::new(), true));
         }
         return None;
     }
@@ -315,7 +315,7 @@ fn shown_markers(app: &mut SolveApp) -> Option<(Value, Value)> {
         let c = crate::dialogs_cmm::characteristic_of(k, &d.inputs)?;
         let key = format!("{}:{}", app.session.revision, serde_json::to_string(&c).unwrap_or_default());
         if app.cmm.preview.as_ref().is_none_or(|(k, _)| *k != key) {
-            let model = app.session.world_state();
+            let model = app.session.world_state().unwrap_or_default();
             let mut m = app.session.doc.cmm.active_setup().map_or(Value::Null, |st| insp::characteristic_markers(&model, st, &c));
             // too few points picked yet: show those there are
             if m.as_array().is_none_or(Vec::is_empty) {
@@ -355,8 +355,8 @@ fn shown_markers(app: &mut SolveApp) -> Option<(Value, Value)> {
     Some((c["markers"].clone(), own.unwrap_or_else(|| st["probe"]["probe_geometry"].clone())))
 }
 
-fn v3(a: [f64; 3]) -> solidcraft_engine::geom::Vec3 {
-    solidcraft_engine::geom::Vec3::new(a[0], a[1], a[2])
+fn v3(a: [f64; 3]) -> solidcore_record::Vec3 {
+    solidcore_record::Vec3::new(a[0], a[1], a[2])
 }
 
 /// Two unit directions at right angles to the unit vector `n`.
@@ -490,12 +490,12 @@ pub fn overlay(app: &mut SolveApp, painter: &egui::Painter, proj: &crate::viewpo
     draw_markers(app, painter, proj);
     let Some((f, name, preview)) = shown_frame(app) else { return };
     let t = crate::theme::Tokens::get();
-    let o = solidcraft_engine::geom::Vec3::new(f.origin[0], f.origin[1], f.origin[2]);
+    let o = solidcore_record::Vec3::new(f.origin[0], f.origin[1], f.origin[2]);
     let len = app.cam.half_height() * 0.22;
     let Some(po) = proj.to_screen(o) else { return };
     let width = if preview { 2.0 } else { 3.0 };
     for (axis, color, letter) in [(f.x, t.axis_x, "X"), (f.y, t.axis_y, "Y"), (f.z, t.axis_z, "Z")] {
-        let d = solidcraft_engine::geom::Vec3::new(axis[0], axis[1], axis[2]);
+        let d = solidcore_record::Vec3::new(axis[0], axis[1], axis[2]);
         let Some(pe) = proj.to_screen(o + d * len) else { continue };
         painter.line_segment([po, pe], egui::Stroke::new(width, color));
         // arrow head

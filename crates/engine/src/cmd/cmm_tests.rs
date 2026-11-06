@@ -48,7 +48,7 @@ const BLIND_S1: [f64; 3] = [-23.0, 0.0, -5.0];
 #[test]
 fn faces_are_recognised() {
     let s = block();
-    let m = s.world_state();
+    let m = s.world_state().unwrap();
     let a = |p: [f64; 3]| crate::inspection::analyze(&m, &crate::inspection::FaceRef { body: "Klotz".into(), point: p }).unwrap();
     match a(BORE_M).kind {
         crate::inspection::FaceKind::Bore { x, y, diameter, top, depth } => {
@@ -350,7 +350,7 @@ fn strategies_and_safety_planes() {
 #[test]
 fn spread_points_avoid_holes_and_edges() {
     let s = block();
-    let m = s.world_state();
+    let m = s.world_state().unwrap();
     let top = crate::inspection::analyze(&m, &crate::inspection::FaceRef { body: "Klotz".into(), point: TOP }).unwrap();
     let pts = crate::inspection::spread_points(&top, 6).unwrap();
     assert_eq!(pts.len(), 6);
@@ -468,13 +468,19 @@ fn the_export_runs_the_postprocessor() {
     // on top, front and left), so the part lies in +X, +Y and below Z 0
     let step = std::fs::read_to_string(plan.join("P1.step")).unwrap();
     assert_eq!(r["step"], json!(plan.join("P1.step").display().to_string()));
+    // the vertices' points: a surface's placement (a plane's origin) may lie off the part
+    let points: std::collections::HashMap<&str, [f64; 3]> = step
+        .lines()
+        .filter_map(|l| l.split_once("=CARTESIAN_POINT('',(").map(|(id, rest)| (id.trim(), rest)))
+        .filter_map(|(id, rest)| {
+            let v: Vec<f64> = rest.split(')').next()?.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+            Some((id, [*v.first()?, *v.get(1)?, *v.get(2)?]))
+        })
+        .collect();
     let pts: Vec<[f64; 3]> = step
         .lines()
-        .filter_map(|l| l.split_once("CARTESIAN_POINT('',(").map(|(_, rest)| rest))
-        .filter_map(|rest| {
-            let v: Vec<f64> = rest.split(')').next()?.split(',').filter_map(|x| x.trim().parse().ok()).collect();
-            Some([*v.first()?, *v.get(1)?, *v.get(2)?])
-        })
+        .filter_map(|l| l.split_once("=VERTEX_POINT('',").and_then(|(_, rest)| points.get(rest.split(')').next()?.trim())))
+        .copied()
         .collect();
     assert!(pts.len() > 8, "{}", &step[..step.len().min(300)]);
     let min = |i: usize| pts.iter().map(|p| p[i]).fold(f64::INFINITY, f64::min);
@@ -611,7 +617,7 @@ fn narrow_pocket_walls_get_probing_circles() {
     run(&mut s, "cmm.alignment", json!({"primary": face(TOP), "direction": [face(FRONT)], "origin_x": [face(LEFT)], "origin_y": [face(FRONT)]}));
     let r = run(&mut s, "cmm.distance", json!({"from": face([-45.0, 15.0, -4.0]), "to": face([-25.0, 15.0, -4.0])}));
     assert!(r["characteristics"][0]["nominal"].as_str().is_some_and(|n| n.starts_with("20 ")), "{r}");
-    let model = s.world_state();
+    let model = s.world_state().unwrap();
     let wall = crate::inspection::analyze(&model, &crate::inspection::FaceRef { body: "Klotz".into(), point: [-45.0, 15.0, -4.0] }).unwrap();
     let circles = crate::inspection::circles(&wall, 2).unwrap();
     for (c, d) in &circles {
@@ -630,7 +636,7 @@ fn dump_faces_of_a_design() {
     let Ok(path) = std::env::var("SC_DUMP_DESIGN") else { return };
     let mut s = Session::default();
     run(&mut s, "doc.open", json!({"path": path}));
-    let w = s.world_state();
+    let w = s.world_state().unwrap();
     for b in &w.bodies {
         let m = b.mesh();
         let mut seen = std::collections::BTreeSet::new();

@@ -40,7 +40,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
     let summary = crate::cmm_workspace::summary(app);
     let key = "cmm";
     let open = is_open(app, key, true);
-    let r = draw_row(ui, ui.id().with(key), &Row { depth, fold: Some(open), icon: "folder", label: "CMM Plan", ..Default::default() });
+    let r = draw_row(ui, ui.scope_id().with(key), &Row { depth, fold: Some(open), icon: "folder", label: "CMM Plan", ..Default::default() });
     if r.fold || r.clicked {
         toggle(app, key, true);
     }
@@ -55,7 +55,11 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
     }
     let setups = summary["setups"].as_array().cloned().unwrap_or_default();
     if setups.is_empty() {
-        let r = draw_row(ui, ui.id().with("cmm_empty"), &Row { depth: depth + 1, icon: "new", label: "New Setup", dim: true, ..Default::default() });
+        let r = draw_row(
+            ui,
+            ui.scope_id().with("cmm_empty"),
+            &Row { depth: depth + 1, icon: "new", label: "New Setup", dim: true, ..Default::default() },
+        );
         if r.clicked || r.double {
             app.start("cmm.setup");
         }
@@ -69,7 +73,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
         let sopen = is_open(app, &skey, true);
         let r = draw_row(
             ui,
-            ui.id().with(&skey),
+            ui.scope_id().with(&skey),
             &Row { depth: depth + 1, fold: Some(sopen), radio: Some(active), icon: "folder", label: &name, name: true, ..Default::default() },
         );
         if r.fold || r.clicked {
@@ -101,7 +105,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
         let label = format!("{}: {probe}{dims}{safety}", crate::i18n::tr_label("Probe System"));
         let r = draw_row(
             ui,
-            ui.id().with((&skey, "probe")),
+            ui.scope_id().with((&skey, "probe")),
             &Row { depth: depth + 2, icon: "settings", label: &label, name: true, ..Default::default() },
         );
         if r.double {
@@ -122,7 +126,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
         let aopen = is_open(app, &akey, true);
         let r = draw_row(
             ui,
-            ui.id().with((&skey, "alignment")),
+            ui.scope_id().with((&skey, "alignment")),
             &Row {
                 depth: depth + 2,
                 fold: (!elements.is_empty()).then_some(aopen),
@@ -136,7 +140,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
         if let Some(rect) = r.rect
             && let Some(problem) = st["alignment"]["problem"].as_str()
         {
-            ui.interact(rect, ui.id().with((&skey, "alignment_tip")), Sense::hover()).on_hover_text(problem);
+            ui.interact(rect, ui.scope_id().with((&skey, "alignment_tip")), Sense::hover()).on_hover_text(problem);
         }
         if r.fold {
             toggle(app, &akey, true);
@@ -159,7 +163,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
                 let command = e["command"].as_str().unwrap_or_default();
                 let r = draw_row(
                     ui,
-                    ui.id().with((&akey, i)),
+                    ui.scope_id().with((&akey, i)),
                     &Row { depth: depth + 3, icon: kind_icon(command), label: &label, name: true, ..Default::default() },
                 );
                 if let Some(rect) = r.rect {
@@ -168,7 +172,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
                     } else {
                         crate::i18n::tr_label("Measured with the default strategy (double-click to set your own)")
                     };
-                    ui.interact(rect, ui.id().with((&akey, i, "tip")), Sense::hover()).on_hover_text(tip);
+                    ui.interact(rect, ui.scope_id().with((&akey, i, "tip")), Sense::hover()).on_hover_text(tip);
                 }
                 if r.clicked {
                     select_faces(app, &json!([e["face"]]));
@@ -196,7 +200,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
         let chars = st["characteristics"].as_array().cloned().unwrap_or_default();
         let r = draw_row(
             ui,
-            ui.id().with(&pkey),
+            ui.scope_id().with(&pkey),
             &Row { depth: depth + 2, fold: Some(popen), icon: "folder", label: "Inspection Plan", ..Default::default() },
         );
         if r.fold || r.clicked {
@@ -219,7 +223,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
             let error = c["error"].is_string();
             let r = draw_row(
                 ui,
-                ui.id().with(("cmm_char", cid)),
+                ui.scope_id().with(("cmm_char", cid)),
                 &Row {
                     depth: depth + 3,
                     icon: kind_icon(c["command"].as_str().unwrap_or_default()),
@@ -231,7 +235,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
             );
             if let Some(rect) = r.rect {
                 let kind = crate::i18n::tr_label(c["kind"].as_str().unwrap_or_default()).to_string();
-                ui.interact(rect, ui.id().with(("cmm_char_tip", cid)), Sense::hover()).on_hover_text(kind);
+                ui.interact(rect, ui.scope_id().with(("cmm_char_tip", cid)), Sense::hover()).on_hover_text(kind);
             }
             if r.clicked {
                 select_faces(app, &c["faces"]);
@@ -256,7 +260,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
         let nopen = is_open(app, &nkey, true);
         let r = draw_row(
             ui,
-            ui.id().with(&nkey),
+            ui.scope_id().with(&nkey),
             &Row { depth: depth + 2, fold: Some(nopen), icon: "folder", label: "NC Programs", ..Default::default() },
         );
         if r.fold || r.clicked {
@@ -276,12 +280,12 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
             );
             let r = draw_row(
                 ui,
-                ui.id().with(("cmm_nc", nid)),
+                ui.scope_id().with(("cmm_nc", nid)),
                 &Row { depth: depth + 3, icon: "export", label: &label, name: true, ..Default::default() },
             );
             if let Some(rect) = r.rect {
                 let tip = format!("{} → {}", nc["plan"].as_str().unwrap_or_default(), nc["output_used"].as_str().unwrap_or_default());
-                ui.interact(rect, ui.id().with(("cmm_nc_tip", nid)), Sense::hover()).on_hover_text(tip);
+                ui.interact(rect, ui.scope_id().with(("cmm_nc_tip", nid)), Sense::hover()).on_hover_text(tip);
             }
             if r.double {
                 crate::dialogs_cmm::edit_nc(app, id, Some(nid));
@@ -313,7 +317,7 @@ fn result_rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, id: u64, act
     let open = is_open(app, &key, true);
     let r = draw_row(
         ui,
-        ui.id().with(&key),
+        ui.scope_id().with(&key),
         &Row { depth, fold: Some(open), icon: "import", label: &label, name: true, color: (out > 0).then_some(t.form_error), ..Default::default() },
     );
     if r.fold || r.clicked {
@@ -333,7 +337,7 @@ fn result_rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, id: u64, act
         let focused = app.cmm.focus_result.as_deref() == Some(c.name.as_str());
         let r = draw_row(
             ui,
-            ui.id().with(("cmm_result", id, &c.name)),
+            ui.scope_id().with(("cmm_result", id, &c.name)),
             &Row {
                 depth: depth + 1,
                 icon: "point",
@@ -359,7 +363,7 @@ fn result_rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, id: u64, act
                 c.upper,
                 c.lower
             );
-            ui.interact(rect, ui.id().with(("cmm_result_tip", id, &c.name)), Sense::hover()).on_hover_text(tip);
+            ui.interact(rect, ui.scope_id().with(("cmm_result_tip", id, &c.name)), Sense::hover()).on_hover_text(tip);
         }
         if r.clicked {
             app.cmm.focus_result = if focused { None } else { Some(c.name.clone()) };
@@ -398,7 +402,7 @@ fn select_faces(app: &mut SolveApp, faces: &Value) {
         .flatten()
         .filter_map(|f| {
             let p = f.get("point")?;
-            let at = solidcraft_engine::geom::Vec3::new(p.get(0)?.as_f64()?, p.get(1)?.as_f64()?, p.get(2)?.as_f64()?);
+            let at = solidcore_record::Vec3::new(p.get(0)?.as_f64()?, p.get(1)?.as_f64()?, p.get(2)?.as_f64()?);
             crate::dialogs::face_sel(&app.session, at).and_then(|s| serde_json::to_value(s).ok())
         })
         .collect();

@@ -8,7 +8,8 @@ use crate::tr;
 use std::collections::BTreeMap;
 
 use serde_json::Value;
-use solidcraft_geom::Vec3;
+use solidcore_record::Vec3;
+use solidcraft_geom::Vec3Geom as _;
 use solidcraft_render::{Camera, Rgb};
 
 use crate::Session;
@@ -49,13 +50,13 @@ struct Step {
 
 /// The sheet of NC program `nc` of `setup` (whose neutral program is `program`).
 pub fn setup_sheet(s: &Session, setup: &Setup, nc: &NcProgram, program: &solidcraft_inspection::program::Program) -> Result<Vec<u8>, String> {
-    let model = s.world_state();
+    let model = s.world_state().map_err(|e| e.to_string())?;
     // faces analysed as the part lies (see `inspection::in_alignment`)
     insp::in_alignment(&model, &setup.alignment, || sheet_of(s, setup, nc, program))
 }
 
 fn sheet_of(s: &Session, setup: &Setup, nc: &NcProgram, program: &solidcraft_inspection::program::Program) -> Result<Vec<u8>, String> {
-    let model = s.world_state();
+    let model = s.world_state().map_err(|e| e.to_string())?;
     let clamp = setup.alignment.clamp.is_some();
     let frame = insp::frame(&model, &setup.alignment)?;
     let design = s
@@ -374,9 +375,9 @@ fn camera_for(bbox: &solidcraft_geom::Aabb3, back: Vec3, aspect: f64) -> Camera 
 /// Renders the part from `cam` with `faces` coloured (true: the face of this step), as a JPEG;
 /// returns it, its size and the scene radius the projection needs.
 fn picture(s: &Session, cam: &Camera, faces: &[(&insp::FaceRef, bool)], aspect: f64) -> Result<(Vec<u8>, usize, usize, f64), String> {
-    let model = s.world_state();
+    let model = s.world_state().map_err(|e| e.to_string())?;
     let guides = crate::view::Guides { grid: false, axes: false };
-    let mut scene = crate::view::scene_with_guides(s, cam, None, guides);
+    let mut scene = crate::view::scene_with_guides(s, cam, None, guides).map_err(|e| e.to_string())?;
     scene.background = Some((Rgb(250, 251, 253), Rgb(232, 236, 242)));
     // colour the faces: every B-rep face of their surface patch (both halves of a cylinder)
     let mut by_body: BTreeMap<String, Vec<(u32, Rgb)>> = BTreeMap::new();
