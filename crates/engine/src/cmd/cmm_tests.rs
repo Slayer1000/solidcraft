@@ -1,6 +1,7 @@
 use serde_json::{Value, json};
 
 use crate::Session;
+use solidcraft_geom::MeshGeom as _;
 
 fn run(s: &mut Session, cmd: &str, p: Value) -> Value {
     match s.execute(cmd, &p) {

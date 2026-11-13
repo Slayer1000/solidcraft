@@ -1303,9 +1303,21 @@ fn ribbon_contents(app: &mut SolveApp, ui: &mut egui::Ui, shape: RibbonShape) ->
         let render = crate::render_workspace::active(app);
         let cmm = crate::cmm_workspace::active(app);
         let switcher = app_bar::Switcher {
-            name: app.tr(if render { "ui.render" } else if cmm { "ui.cmm" } else { "ui.design" }),
+            name: app.tr(if render {
+                "ui.render"
+            } else if cmm {
+                "ui.cmm"
+            } else {
+                "ui.design"
+            }),
             caption: app.tr("ui.ribbon_workspace"),
-            icon: if render { "ws_render" } else if cmm { "measure" } else { "ws_design" },
+            icon: if render {
+                "ws_render"
+            } else if cmm {
+                "measure"
+            } else {
+                "ws_design"
+            },
             tip: app.tr("ui.change_workspace"),
             open: app.viewport.context_menu.is_some() && app.menu.target == crate::context_menu::Target::Workspace,
             floating,

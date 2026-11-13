@@ -100,7 +100,7 @@ pub fn summary(app: &mut SolveApp) -> Value {
 /// it has none yet); OK there saves the program and writes the plan.
 pub fn export(app: &mut SolveApp, setup: Option<u64>) {
     let Some(st) = setup.and_then(|s| app.session.doc.cmm.setup(s)).or_else(|| app.session.doc.cmm.active_setup()) else {
-        app.set_status(crate::i18n::tr_label("create a setup first (CMM → New Setup)").to_string(), true);
+        app.set_status(solidcraft_ui_text::tr_label("create a setup first (CMM → New Setup)").to_string(), true);
         return;
     };
     let (id, nc) = (st.id, st.programs.first().map(|p| p.id));
@@ -112,18 +112,18 @@ pub fn show_export(app: &mut SolveApp, v: &Value) {
     if !v.is_object() {
         return;
     }
-    let mut msg = format!("{}: {}", crate::i18n::tr_label("Inspection plan written"), v["folder"].as_str().unwrap_or_default());
+    let mut msg = format!("{}: {}", solidcraft_ui_text::tr_label("Inspection plan written"), v["folder"].as_str().unwrap_or_default());
     let skipped: Vec<&str> = v["skipped"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
     if !skipped.is_empty() {
-        msg.push_str(&format!(" — {}: {}", crate::i18n::tr_label("not exported yet"), skipped.join(", ")));
+        msg.push_str(&format!(" — {}: {}", solidcraft_ui_text::tr_label("not exported yet"), skipped.join(", ")));
     }
     if let Some(sheet) = v["sheet"].as_str() {
         let name = std::path::Path::new(sheet).file_name().and_then(|n| n.to_str()).unwrap_or(sheet);
-        msg.push_str(&format!(" · {}: {name}", crate::i18n::tr_label("Setup sheet")));
+        msg.push_str(&format!(" · {}: {name}", solidcraft_ui_text::tr_label("Setup sheet")));
     }
     if let Some(step) = v["step"].as_str() {
         let name = std::path::Path::new(step).file_name().and_then(|n| n.to_str()).unwrap_or(step);
-        msg.push_str(&format!(" · {}: {name}", crate::i18n::tr_label("CAD model")));
+        msg.push_str(&format!(" · {}: {name}", solidcraft_ui_text::tr_label("CAD model")));
     }
     let warnings: Vec<&str> = v["warnings"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
     if !warnings.is_empty() {
@@ -147,12 +147,12 @@ pub fn load_results(app: &mut SolveApp, setup: Option<u64>, nc: Option<u64>) {
             app.cmm.focus_result = None;
             let msg = format!(
                 "{}: {} · {} {} · {} {}",
-                crate::i18n::tr_label("Measurement results"),
+                solidcraft_ui_text::tr_label("Measurement results"),
                 v["plan"].as_str().unwrap_or_default(),
                 v["in_tolerance"].as_u64().unwrap_or(0),
-                crate::i18n::tr_label("in tolerance"),
+                solidcraft_ui_text::tr_label("in tolerance"),
                 v["out_of_tolerance"].as_u64().unwrap_or(0),
-                crate::i18n::tr_label("out of tolerance"),
+                solidcraft_ui_text::tr_label("out of tolerance"),
             );
             app.set_status(msg, false);
         }
@@ -163,7 +163,7 @@ pub fn load_results(app: &mut SolveApp, setup: Option<u64>, nc: Option<u64>) {
 /// A grade's colour.
 pub fn grade_color(g: solidcraft_engine::inspection_results::Grade) -> egui::Color32 {
     use solidcraft_engine::inspection_results::Grade;
-    let t = crate::theme::Tokens::get();
+    let t = solidcraft_theme::Tokens::get();
     match g {
         Grade::Good => t.agent_ok,
         Grade::Near => t.warning,
@@ -178,7 +178,7 @@ pub fn grade_color(g: solidcraft_engine::inspection_results::Grade) -> egui::Col
 fn draw_results(app: &SolveApp, painter: &egui::Painter, proj: &crate::viewport::Proj) {
     use solidcraft_engine::inspection_results::Grade;
     let Some(r) = app.session.cmm_results.as_ref() else { return };
-    let t = crate::theme::Tokens::get();
+    let t = solidcraft_theme::Tokens::get();
     let focus = app.cmm.focus_result.as_deref();
     let few = r.points.len() <= 30;
     let font = egui::FontId::proportional(t.font_small);
@@ -230,7 +230,7 @@ fn draw_results(app: &SolveApp, painter: &egui::Painter, proj: &crate::viewport:
         None,
         format!(
             "{} {}{}",
-            crate::i18n::tr_label("Measurement results"),
+            solidcraft_ui_text::tr_label("Measurement results"),
             r.plan,
             r.measured.as_deref().map(|m| format!(" · {}", m.replace('T', " "))).unwrap_or_default()
         ),
@@ -241,7 +241,7 @@ fn draw_results(app: &SolveApp, painter: &egui::Painter, proj: &crate::viewport:
         (Grade::Out, "out of tolerance"),
         (Grade::Unknown, "no tolerance"),
     ] {
-        lines.push((Some(g), format!("{}: {}", crate::i18n::tr_label(label), count(g))));
+        lines.push((Some(g), format!("{}: {}", solidcraft_ui_text::tr_label(label), count(g))));
     }
     let galleys: Vec<_> =
         lines.into_iter().map(|(g, text)| (g, painter.layout_no_wrap(text, font.clone(), if g.is_some() { t.text_dim } else { t.text }))).collect();
@@ -381,7 +381,7 @@ fn screen_radius(proj: &crate::viewport::Proj, p: [f64; 3], r: f64, axis: [f64; 
 /// the base body up along `up`, the measuring system's +Z (dimensions from the probe table, else
 /// typical ones).
 fn draw_probe(painter: &egui::Painter, proj: &crate::viewport::Proj, at: [f64; 3], normal: [f64; 3], up: [f64; 3], g: &Value) {
-    let t = crate::theme::Tokens::get();
+    let t = solidcraft_theme::Tokens::get();
     let num = |k: &str, d: f64| g[k].as_f64().filter(|x| x.is_finite() && *x > 0.0).unwrap_or(d);
     let ball = num("ball", 2.0);
     let r = ball / 2.0;
@@ -422,7 +422,7 @@ fn draw_probe(painter: &egui::Painter, proj: &crate::viewport::Proj, at: [f64; 3
 fn draw_markers(app: &mut SolveApp, painter: &egui::Painter, proj: &crate::viewport::Proj) {
     let Some((markers, probe)) = shown_markers(app) else { return };
     let Some(list) = markers.as_array() else { return };
-    let t = crate::theme::Tokens::get();
+    let t = solidcraft_theme::Tokens::get();
     let stroke = egui::Stroke::new(2.0, t.accent);
     let mut first: Option<([f64; 3], [f64; 3])> = None;
     let mut n = 0;
@@ -489,7 +489,7 @@ pub fn overlay(app: &mut SolveApp, painter: &egui::Painter, proj: &crate::viewpo
     draw_results(app, painter, proj);
     draw_markers(app, painter, proj);
     let Some((f, name, preview)) = shown_frame(app) else { return };
-    let t = crate::theme::Tokens::get();
+    let t = solidcraft_theme::Tokens::get();
     let o = solidcore_record::Vec3::new(f.origin[0], f.origin[1], f.origin[2]);
     let len = app.cam.half_height() * 0.22;
     let Some(po) = proj.to_screen(o) else { return };

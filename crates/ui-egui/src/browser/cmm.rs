@@ -93,7 +93,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
         }
         // Probe System
         let probe = st["probe"]["probe_file"].as_str().map_or_else(
-            || crate::i18n::tr_label("from the post").to_string(),
+            || solidcraft_ui_text::tr_label("from the post").to_string(),
             |p| std::path::Path::new(p).file_stem().and_then(|s| s.to_str()).unwrap_or(p).to_string(),
         );
         let g = &st["probe"]["probe_geometry"];
@@ -102,7 +102,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
             _ => String::new(),
         };
         let safety = st["safety_plane"].as_str().map(|s| format!(" · SP {}", s.to_uppercase())).unwrap_or_default();
-        let label = format!("{}: {probe}{dims}{safety}", crate::i18n::tr_label("Probe System"));
+        let label = format!("{}: {probe}{dims}{safety}", solidcraft_ui_text::tr_label("Probe System"));
         let r = draw_row(
             ui,
             ui.scope_id().with((&skey, "probe")),
@@ -117,9 +117,9 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
         // Alignment
         let complete = st["alignment"]["complete"] == true;
         let label = if complete {
-            crate::i18n::tr_label("Alignment").to_string()
+            solidcraft_ui_text::tr_label("Alignment").to_string()
         } else {
-            format!("{} ({})", crate::i18n::tr_label("Alignment"), crate::i18n::tr_label("incomplete"))
+            format!("{} ({})", solidcraft_ui_text::tr_label("Alignment"), solidcraft_ui_text::tr_label("incomplete"))
         };
         let elements = st["alignment"]["elements"].as_array().cloned().unwrap_or_default();
         let akey = format!("cmm:{id}:alignment");
@@ -168,9 +168,9 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
                 );
                 if let Some(rect) = r.rect {
                     let tip = if e["characteristic"].is_u64() {
-                        crate::i18n::tr_label("Measured as its measurement in the inspection plan says (double-click to change)")
+                        solidcraft_ui_text::tr_label("Measured as its measurement in the inspection plan says (double-click to change)")
                     } else {
-                        crate::i18n::tr_label("Measured with the default strategy (double-click to set your own)")
+                        solidcraft_ui_text::tr_label("Measured with the default strategy (double-click to set your own)")
                     };
                     ui.interact(rect, ui.scope_id().with((&akey, i, "tip")), Sense::hover()).on_hover_text(tip);
                 }
@@ -234,7 +234,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
                 },
             );
             if let Some(rect) = r.rect {
-                let kind = crate::i18n::tr_label(c["kind"].as_str().unwrap_or_default()).to_string();
+                let kind = solidcraft_ui_text::tr_label(c["kind"].as_str().unwrap_or_default()).to_string();
                 ui.interact(rect, ui.scope_id().with(("cmm_char_tip", cid)), Sense::hover()).on_hover_text(kind);
             }
             if r.clicked {
@@ -276,7 +276,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
                 "{} · {post} · {} {}",
                 nc["name"].as_str().unwrap_or_default(),
                 nc["outputs"].as_str().unwrap_or_default(),
-                crate::i18n::tr_label("characteristics")
+                solidcraft_ui_text::tr_label("characteristics")
             );
             let r = draw_row(
                 ui,
@@ -301,7 +301,7 @@ pub(super) fn rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, acts: &m
 /// and out of tolerance, and per characteristic its actual value and deviation (red: out).
 fn result_rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, id: u64, acts: &mut Actions) {
     let Some(r) = app.session.cmm_results.as_ref().filter(|r| r.setup == id) else { return };
-    let t = crate::theme::Tokens::get();
+    let t = solidcraft_theme::Tokens::get();
     let (inside, out) = r.counts();
     let mut chars: Vec<solidcraft_engine::inspection_results::CharacteristicResult> = r.characteristics.iter().take(5000).cloned().collect();
     chars.sort_by_cached_key(|c| natural(&c.name));
@@ -309,9 +309,9 @@ fn result_rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, id: u64, act
     let when = r.measured.as_deref().map(|m| format!(" · {}", m.replace('T', " "))).unwrap_or_default();
     let label = format!(
         "{}{when} · {inside} {} · {out} {}",
-        crate::i18n::tr_label("Measurement Results"),
-        crate::i18n::tr_label("in tolerance"),
-        crate::i18n::tr_label("out of tolerance")
+        solidcraft_ui_text::tr_label("Measurement Results"),
+        solidcraft_ui_text::tr_label("in tolerance"),
+        solidcraft_ui_text::tr_label("out of tolerance")
     );
     let key = format!("cmm:{id}:results");
     let open = is_open(app, &key, true);
@@ -350,15 +350,15 @@ fn result_rows(app: &mut SolveApp, ui: &mut egui::Ui, depth: usize, id: u64, act
         );
         if let Some(rect) = r.rect {
             let state = match c.state {
-                State::In => crate::i18n::tr_label("in tolerance"),
-                State::Out => crate::i18n::tr_label("out of tolerance"),
-                State::Unknown => crate::i18n::tr_label("no tolerance"),
+                State::In => solidcraft_ui_text::tr_label("in tolerance"),
+                State::Out => solidcraft_ui_text::tr_label("out of tolerance"),
+                State::Unknown => solidcraft_ui_text::tr_label("no tolerance"),
             };
             let tip = format!(
                 "{}\n{:.4}{unit} · {} {:.4} · +{:.4} / {:.4}\n{state}",
                 c.name,
                 c.actual,
-                crate::i18n::tr_label("Nominal"),
+                solidcraft_ui_text::tr_label("Nominal"),
                 c.nominal,
                 c.upper,
                 c.lower

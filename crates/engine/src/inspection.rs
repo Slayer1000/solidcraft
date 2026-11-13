@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use solidcore_record::Vec3;
+use solidcraft_geom::MeshGeom as _;
 use solidcraft_inspection::program as pg;
 
 pub use solidcraft_doc::cmm::{

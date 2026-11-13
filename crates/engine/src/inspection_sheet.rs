@@ -9,8 +9,8 @@ use std::collections::BTreeMap;
 
 use serde_json::Value;
 use solidcore_record::Vec3;
-use solidcraft_geom::Vec3Geom as _;
-use solidcraft_render::{Camera, Rgb};
+use solidcraft_geom::{MeshGeom as _, Vec3Geom as _};
+use solidcraft_viewport::{Camera, Rgb};
 
 use crate::Session;
 use crate::inspection::{self as insp, Frame, NcProgram, Setup};
@@ -348,7 +348,7 @@ fn model_box(model: &solidcraft_doc::ModelState) -> solidcraft_geom::Aabb3 {
 /// most of a picture of `aspect` (width / height).
 fn camera_for(bbox: &solidcraft_geom::Aabb3, back: Vec3, aspect: f64) -> Camera {
     let mut cam = Camera::default().looking_from(back);
-    cam.fit(bbox);
+    cam.fit(&solidcraft_render::view_bounds(bbox));
     if bbox.is_empty() {
         return cam;
     }
@@ -400,7 +400,7 @@ fn picture(s: &Session, cam: &Camera, faces: &[(&insp::FaceRef, bool)], aspect: 
         }
     }
     let h = ((PX_WIDTH as f64 / aspect.clamp(0.5, 3.0)).round() as usize).clamp(200, 2000);
-    let canvas = solidcraft_render::render(&scene, cam, PX_WIDTH, h);
+    let canvas = solidcraft_viewport::render(&scene, cam, PX_WIDTH, h);
     let (w, h) = (canvas.w, canvas.h);
     let rgb: Vec<u8> = canvas.rgba.chunks_exact(4).flat_map(|p| [p[0], p[1], p[2]]).collect();
     let img = image::RgbImage::from_raw(u32::try_from(w).map_err(|e| e.to_string())?, u32::try_from(h).map_err(|e| e.to_string())?, rgb)

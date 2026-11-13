@@ -728,7 +728,7 @@ fn safety_row(ui: &mut egui::Ui, safety: &mut usize) {
 fn probe_row(ui: &mut egui::Ui, extra: &mut Map<String, Value>) {
     let files: Vec<String> = insp::probe_choices();
     let current = extra.get("probe_file").and_then(Value::as_str).map(str::to_string);
-    let mut labels = vec![crate::i18n::tr_label("From the setup").to_string()];
+    let mut labels = vec![solidcraft_ui_text::tr_label("From the setup").to_string()];
     labels.extend(files.iter().map(|p| path_label(p)));
     // a file chosen earlier that is no longer in the folder stays listed
     let mut files = files;
@@ -760,7 +760,7 @@ fn probe_rows(ui: &mut egui::Ui, rows: &mut Vec<ProbeText>, shown: &mut usize, n
     let mut enter = false;
     let table = insp::probe_table_path().map(|p| p.display().to_string()).unwrap_or_else(|| "<data>/inspection/probes/probe-table.json".into());
     if rows.is_empty() {
-        ui_kit::text(ui, crate::i18n::tr_label("No probes yet: add one below."), Text::Note("cmm_probe_none"));
+        ui_kit::text(ui, solidcraft_ui_text::tr_label("No probes yet: add one below."), Text::Note("cmm_probe_none"));
     } else {
         let names: Vec<String> = rows.iter().map(|r| r.file.clone()).collect();
         let refs: Vec<&str> = names.iter().map(String::as_str).collect();
@@ -773,7 +773,7 @@ fn probe_rows(ui: &mut egui::Ui, rows: &mut Vec<ProbeText>, shown: &mut usize, n
             enter |= text_row(ui, "Order No.", &mut r.order_no, "").0;
             enter |= text_row(ui, "Note", &mut r.note, "").0;
         }
-        if ui_kit::row(ui, "", |ui| ui_kit::button(ui, crate::i18n::tr_label("Remove this probe"), ui_kit::Button::Normal)).clicked()
+        if ui_kit::row(ui, "", |ui| ui_kit::button(ui, solidcraft_ui_text::tr_label("Remove this probe"), ui_kit::Button::Normal)).clicked()
             && *shown < rows.len()
         {
             rows.remove(*shown);
@@ -781,16 +781,20 @@ fn probe_rows(ui: &mut egui::Ui, rows: &mut Vec<ProbeText>, shown: &mut usize, n
         }
     }
     // a new probe: its name as the machine knows it (a probe file of that name is used if present)
-    text_row(ui, "New Probe", new_name, crate::i18n::tr_label("name, e.g. as on the machine"));
+    text_row(ui, "New Probe", new_name, solidcraft_ui_text::tr_label("name, e.g. as on the machine"));
     let name = new_name.trim().to_string();
     let taken = rows.iter().any(|r| r.file.eq_ignore_ascii_case(&name));
     let ok = !name.is_empty() && !taken && !name.contains(['/', '\\']) && rows.len() < insp::MAX_PROBE_ROWS;
-    if ui_kit::row(ui, "", |ui| ui_kit::button(ui, crate::i18n::tr_label("Add probe"), ui_kit::Button::Enabled(ok))).clicked() && ok {
+    if ui_kit::row(ui, "", |ui| ui_kit::button(ui, solidcraft_ui_text::tr_label("Add probe"), ui_kit::Button::Enabled(ok))).clicked() && ok {
         rows.push(ProbeText { file: name, ..Default::default() });
         *shown = rows.len() - 1;
         new_name.clear();
     }
-    ui_kit::text(ui, &format!("{} {table}", crate::i18n::tr_label("Saved for all designs (not in the design):")), Text::Note("cmm_probe_where"));
+    ui_kit::text(
+        ui,
+        &format!("{} {table}", solidcraft_ui_text::tr_label("Saved for all designs (not in the design):")),
+        Text::Note("cmm_probe_where"),
+    );
     enter
 }
 
@@ -823,11 +827,11 @@ pub fn rows(
             choice_row(ui, "Planes", "cmm_plane_probing", plane_probing, &PLANE_DEFAULTS);
             ui_kit::text(
                 ui,
-                crate::i18n::tr_label("Postprocessor and plan output: in the setup's NC programs (Create Inspection Plan)."),
+                solidcraft_ui_text::tr_label("Postprocessor and plan output: in the setup's NC programs (Create Inspection Plan)."),
                 Text::Note("cmm_nc_note"),
             );
             if probes.is_empty() {
-                ui_kit::text(ui, crate::i18n::tr_label("No probes yet: add them in the probe table (Probes)."), Text::Note("cmm_pcf"));
+                ui_kit::text(ui, solidcraft_ui_text::tr_label("No probes yet: add them in the probe table (Probes)."), Text::Note("cmm_pcf"));
             }
         }
         Km::Nc { name, post, posts, plan_name, output_dir, settings, chars, sheet, step } => {
@@ -840,12 +844,12 @@ pub fn rows(
                 let folder = insp::data_folder().map(|d| d.display().to_string()).unwrap_or_else(|| "<data>/inspection".into());
                 ui_kit::text(ui, &format!("No postprocessor yet: put the post's program into {folder}/post."), Text::Note("cmm_tpl"));
             }
-            enter |= text_row(ui, "Plan Name", plan_name, crate::i18n::tr_label("design and setup name")).0;
-            enter |= text_row(ui, "Output Folder", output_dir, crate::i18n::tr_label("<data>/inspection/output")).0;
+            enter |= text_row(ui, "Plan Name", plan_name, solidcraft_ui_text::tr_label("design and setup name")).0;
+            enter |= text_row(ui, "Output Folder", output_dir, solidcraft_ui_text::tr_label("<data>/inspection/output")).0;
             if app.services.pick_folder.is_some()
-                && ui_kit::row(ui, "", |ui| ui_kit::button(ui, crate::i18n::tr_label("Choose folder…"), ui_kit::Button::Normal)).clicked()
+                && ui_kit::row(ui, "", |ui| ui_kit::button(ui, solidcraft_ui_text::tr_label("Choose folder…"), ui_kit::Button::Normal)).clicked()
             {
-                let title = crate::i18n::tr_label("Output Folder").to_string();
+                let title = solidcraft_ui_text::tr_label("Output Folder").to_string();
                 app.pick_folder(&title, |app, path| {
                     if let Some(path) = path
                         && let Some(d) = app.dialog.as_mut()
@@ -855,11 +859,11 @@ pub fn rows(
                     }
                 });
             }
-            ui_kit::checkbox(ui, crate::i18n::tr_label("Setup sheet (PDF) for the operator"), sheet);
-            ui_kit::checkbox(ui, crate::i18n::tr_label("CAD model (STEP) in the base system"), step);
+            ui_kit::checkbox(ui, solidcraft_ui_text::tr_label("Setup sheet (PDF) for the operator"), sheet);
+            ui_kit::checkbox(ui, solidcraft_ui_text::tr_label("CAD model (STEP) in the base system"), step);
             if let Some(list) = settings.get_mut(*post) {
                 if !list.is_empty() {
-                    ui_kit::text(ui, crate::i18n::tr_label("Postprocessor settings"), Text::Note("cmm_nc_settings"));
+                    ui_kit::text(ui, solidcraft_ui_text::tr_label("Postprocessor settings"), Text::Note("cmm_nc_settings"));
                 }
                 for s in list.iter_mut() {
                     if s.flag {
@@ -869,9 +873,9 @@ pub fn rows(
                     }
                 }
             }
-            ui_kit::text(ui, crate::i18n::tr_label("Characteristics in this program"), Text::Note("cmm_nc_chars"));
+            ui_kit::text(ui, solidcraft_ui_text::tr_label("Characteristics in this program"), Text::Note("cmm_nc_chars"));
             if chars.is_empty() {
-                ui_kit::text(ui, crate::i18n::tr_label("No characteristics yet."), Text::Note("cmm_nc_none"));
+                ui_kit::text(ui, solidcraft_ui_text::tr_label("No characteristics yet."), Text::Note("cmm_nc_none"));
             }
             for (_, label, on) in chars.iter_mut() {
                 ui_kit::checkbox(ui, label, on);
@@ -881,29 +885,31 @@ pub fn rows(
         Km::Alignment { bores, clamp, margin, points } => {
             ui_kit::text(
                 ui,
-                crate::i18n::tr_label(
+                solidcraft_ui_text::tr_label(
                     "Primary plane: a plane of the part (spatial axis, origin Z); the measuring axes follow the part, however it lies.",
                 ),
                 Text::Note("cmm_a1"),
             );
-            ui_kit::checkbox(ui, crate::i18n::tr_label("Clamped on this face: probe the clamping plate beside the part"), clamp);
+            ui_kit::checkbox(ui, solidcraft_ui_text::tr_label("Clamped on this face: probe the clamping plate beside the part"), clamp);
             if *clamp {
                 enter |= hint_row(ui, "Distance from the part", margin, "10 mm");
-                enter |= text_row(ui, "Points on the plate", points, crate::i18n::tr_label("X Y; X Y; … (empty: 4 points around the part)")).0;
+                enter |= text_row(ui, "Points on the plate", points, solidcraft_ui_text::tr_label("X Y; X Y; … (empty: 4 points around the part)")).0;
             }
             ui_kit::text(
                 ui,
-                crate::i18n::tr_label("Direction: one side face, or two bores (X runs from the first to the second)."),
+                solidcraft_ui_text::tr_label("Direction: one side face, or two bores (X runs from the first to the second)."),
                 Text::Note("cmm_a2"),
             );
             ui_kit::text(
                 ui,
-                crate::i18n::tr_label("Origin X / Y: a side face, two opposite sides (their middle) or a bore (its axis; for X alone it is Y too)."),
+                solidcraft_ui_text::tr_label(
+                    "Origin X / Y: a side face, two opposite sides (their middle) or a bore (its axis; for X alone it is Y too).",
+                ),
                 Text::Note("cmm_a3"),
             );
             ui_kit::text(
                 ui,
-                crate::i18n::tr_label("How a face is probed: a plane or cylinder measurement of it, else the setup's planes setting."),
+                solidcraft_ui_text::tr_label("How a face is probed: a plane or cylinder measurement of it, else the setup's planes setting."),
                 Text::Note("cmm_a4"),
             );
             choice_row(ui, "Bores", "cmm_align_bores", bores, &ALIGN_BORES);
@@ -912,7 +918,7 @@ pub fn rows(
             } else {
                 "Cylinder: scanned over the depth; where its axis meets the primary plane is the origin."
             };
-            ui_kit::text(ui, crate::i18n::tr_label(note), Text::Note("cmm_a5"));
+            ui_kit::text(ui, solidcraft_ui_text::tr_label(note), Text::Note("cmm_a5"));
             let a =
                 alignment_of(app, inputs, clamp_of(&Km::Alignment { bores: *bores, clamp: *clamp, margin: margin.clone(), points: points.clone() }));
             if a.is_complete() {
@@ -931,10 +937,10 @@ pub fn rows(
             enter |= hint_row(ui, "Tolerance ±", tol, "mm");
             enter |= hint_row(ui, "Points", points, "4");
             enter |= hint_row(ui, "Distance to the Plane", height, "2 mm");
-            ui_kit::checkbox(ui, crate::i18n::tr_label("Position from the origin (X, Y)"), position);
+            ui_kit::checkbox(ui, solidcraft_ui_text::tr_label("Position from the origin (X, Y)"), position);
             safety_row(ui, safety);
             probe_row(ui, extra);
-            enter |= text_row(ui, "Name", name, crate::i18n::tr_label("automatic")).0;
+            enter |= text_row(ui, "Name", name, solidcraft_ui_text::tr_label("automatic")).0;
         }
         Km::Cylinder { name, tol, strategy, paths, points, height, safety } => {
             choice_row(ui, "Strategy", "cmm_cyl_strategy", strategy, &CYLINDER_STRATEGIES);
@@ -946,11 +952,11 @@ pub fn rows(
                 }
                 enter |= hint_row(ui, "Distance to the Planes", height, "2 mm");
             } else {
-                ui_kit::text(ui, crate::i18n::tr_label("Click at least 4 points on the bore's wall."), Text::Note("cmm_cyl_pick"));
+                ui_kit::text(ui, solidcraft_ui_text::tr_label("Click at least 4 points on the bore's wall."), Text::Note("cmm_cyl_pick"));
             }
             safety_row(ui, safety);
             probe_row(ui, extra);
-            enter |= text_row(ui, "Name", name, crate::i18n::tr_label("automatic")).0;
+            enter |= text_row(ui, "Name", name, solidcraft_ui_text::tr_label("automatic")).0;
         }
         Km::Plane { name, strategy, points, safety } => {
             choice_row(ui, "Strategy", "cmm_plane_strategy", strategy, &PLANE_STRATEGIES);
@@ -958,40 +964,40 @@ pub fn rows(
                 enter |= hint_row(ui, "Points", points, "4");
                 ui_kit::text(
                     ui,
-                    crate::i18n::tr_label("Click at least 4 points on the face, or none to spread the points over it."),
+                    solidcraft_ui_text::tr_label("Click at least 4 points on the face, or none to spread the points over it."),
                     Text::Note("cmm_plane_pick"),
                 );
             }
-            ui_kit::text(ui, crate::i18n::tr_label("Holds wherever the plane is used (alignment, distances)."), Text::Note("cmm_plane_where"));
+            ui_kit::text(ui, solidcraft_ui_text::tr_label("Holds wherever the plane is used (alignment, distances)."), Text::Note("cmm_plane_where"));
             safety_row(ui, safety);
             probe_row(ui, extra);
-            enter |= text_row(ui, "Name", name, crate::i18n::tr_label("automatic")).0;
+            enter |= text_row(ui, "Name", name, solidcraft_ui_text::tr_label("automatic")).0;
         }
         Km::Point { name, tol, safety, check } => {
             let n = inputs.first().map_or(0, |i| i.items.len());
             ui_kit::text(
                 ui,
-                &format!("{} {n}", crate::i18n::tr_label("Click one or many points on the part, e.g. along a contour. Points:")),
+                &format!("{} {n}", solidcraft_ui_text::tr_label("Click one or many points on the part, e.g. along a contour. Points:")),
                 Text::Note("cmm_points_note"),
             );
             choice_row(ui, "Evaluation", "cmm_point_check", check, &["Deviation along the normal (form)", "Coordinates X, Y, Z"]);
             enter |= hint_row(ui, "Tolerance ±", tol, "mm");
             safety_row(ui, safety);
             probe_row(ui, extra);
-            enter |= text_row(ui, "Name", name, crate::i18n::tr_label("automatic")).0;
+            enter |= text_row(ui, "Name", name, solidcraft_ui_text::tr_label("automatic")).0;
         }
         Km::Distance { name, tol, axis, safety } => {
             choice_row(ui, "Axis", "cmm_axis", axis, &AXES);
             enter |= hint_row(ui, "Tolerance ±", tol, "mm");
             safety_row(ui, safety);
             probe_row(ui, extra);
-            enter |= text_row(ui, "Name", name, crate::i18n::tr_label("automatic")).0;
+            enter |= text_row(ui, "Name", name, solidcraft_ui_text::tr_label("automatic")).0;
         }
         Km::Angle { name, tol, safety } => {
             enter |= hint_row(ui, "Tolerance ±", tol, "deg");
             safety_row(ui, safety);
             probe_row(ui, extra);
-            enter |= text_row(ui, "Name", name, crate::i18n::tr_label("automatic")).0;
+            enter |= text_row(ui, "Name", name, solidcraft_ui_text::tr_label("automatic")).0;
         }
     }
     sync_points(k, inputs, active);
